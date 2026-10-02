@@ -1,0 +1,68 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+/// Propriété immobilière (maison, villa, terrain, appartement)
+model Property {
+  id           Int       @id @default(autoincrement())
+  titre        String
+  description  String
+  prix         String
+  priceNumeric Float
+  type         String    // Maison, Villa, Terrain, Appartement
+  location     String
+  beds         Int?
+  baths        Int?
+  area         String
+  status       String    @default("available") // available, reserved, sold
+  actionType   String    // sale, rent
+  features     String    @default("[]")   // JSON array
+  details      String    @default("{}")   // JSON object
+  images       String    @default("[]")   // JSON array
+  image        String    @default("")     // Image principale
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  contacts     Contact[]
+  stats        Stats[]
+}
+
+/// Utilisateur administrateur ou agent
+model User {
+  id        Int      @id @default(autoincrement())
+  email     String   @unique
+  password  String
+  name      String
+  role      String   @default("admin") // admin, agent
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+/// Message de contact depuis le site
+model Contact {
+  id         Int       @id @default(autoincrement())
+  name       String
+  email      String
+  phone      String?
+  subject    String
+  message    String
+  status     String    @default("new") // new, read, replied
+  propertyId Int?
+  property   Property? @relation(fields: [propertyId], references: [id], onDelete: SetNull)
+  createdAt  DateTime  @default(now())
+}
+
+/// Statistiques de consultation
+model Stats {
+  id         Int      @id @default(autoincrement())
+  propertyId Int
+  property   Property @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  views      Int      @default(0)
+  inquiries  Int      @default(0)
+  date       DateTime @default(now())
+}
