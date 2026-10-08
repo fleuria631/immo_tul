@@ -1,9 +1,21 @@
 import { Link } from "react-router-dom";
 import { Phone, Mail, MapPin } from "lucide-react";
+import WhatsAppButton from "@/components/WhatsAppButton";
 
-const Footer = () => {
+const CURRENT_YEAR = new Date().getFullYear();
+
+const services = [
+  "Vente immobilière",
+  "Location & Gestion",
+  "Mutations",
+  "Visas & Résidence",
+  "Création d'entreprise",
+];
+
+const Footer = ({ showWhatsApp = true }) => {
   return (
     <footer className="bg-[#0a2540] text-white">
+      {showWhatsApp && <WhatsAppButton />}
       {/* Main Footer */}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-10">
@@ -64,6 +76,8 @@ const Footer = () => {
                 { label: "À louer", url: "/Alouer" },
                 { label: "Prestations", url: "/Prestation" },
                 { label: "À propos", url: "/Apropos" },
+                { label: "Mes favoris", url: "/favoris" },
+                { label: "Contact", url: "/contact" },
               ].map((link) => (
                 <Link
                   key={link.url}
@@ -79,12 +93,16 @@ const Footer = () => {
           {/* Services */}
           <div>
             <h4 className="font-semibold mb-4 text-white/90">Services</h4>
-            <div className="space-y-3 text-sm text-white/60">
-              <p>Vente immobilière</p>
-              <p>Location & Gestion</p>
-              <p>Mutations</p>
-              <p>Visas & Résidence</p>
-              <p>Création d'entreprise</p>
+            <div className="space-y-3 text-sm">
+              {services.map((service) => (
+                <Link
+                  key={service}
+                  to="/Prestation"
+                  className="block text-white/60 hover:text-accent transition-colors"
+                >
+                  {service}
+                </Link>
+              ))}
             </div>
           </div>
         </div>
@@ -95,16 +113,11 @@ const Footer = () => {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
           <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
             <p className="text-white/40 text-sm">
-              © {new Date().getFullYear()} ImmoTuléar. Tous droits réservés.
+              © {CURRENT_YEAR} ImmoTuléar. Tous droits réservés.
             </p>
-            <div className="flex gap-6 text-sm text-white/40">
-              <a href="#" className="hover:text-white/70 transition-colors">
-                Mentions légales
-              </a>
-              <a href="#" className="hover:text-white/70 transition-colors">
-                Confidentialité
-              </a>
-            </div>
+            <Link to="/contact" className="text-sm text-white/40 hover:text-white/70 transition-colors">
+              Une question ? Contactez-nous
+            </Link>
           </div>
         </div>
       </div>

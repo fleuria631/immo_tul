@@ -2,11 +2,13 @@ import {
   Check, Home, KeyRound, FileText, Map, Car, CreditCard,
   Building2, UserRound, Globe, Phone, Mail, MapPin
 } from "lucide-react";
+import { Link } from "react-router-dom";
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { usePageTitle } from "@/hooks/usePageTitle";
 
 const services = [
   {
@@ -57,6 +59,7 @@ const services = [
 ];
 
 function Prestation() {
+  usePageTitle("Nos prestations");
   return (
     <>
       <Navbar />
@@ -111,9 +114,11 @@ function Prestation() {
                     <div className="text-lg font-bold text-primary mb-3">
                       {service.price}
                     </div>
-                    <Button variant="outline" className="w-full">
-                      Demander un devis
-                    </Button>
+                    <Link to={`/contact?sujet=${encodeURIComponent(`Devis : ${service.title}`)}`}>
+                      <Button variant="outline" className="w-full">
+                        Demander un devis
+                      </Button>
+                    </Link>
                   </div>
                 </CardContent>
               </Card>
@@ -136,11 +141,11 @@ function Prestation() {
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-8">
                   <div className="flex items-center gap-3 justify-center">
                     <Phone className="w-5 h-5 text-primary" />
-                    <span className="text-sm">+261 32 02 600 43</span>
+                    <a href="tel:+261320260043" className="text-sm hover:text-primary">+261 32 02 600 43</a>
                   </div>
                   <div className="flex items-center gap-3 justify-center">
                     <Mail className="w-5 h-5 text-primary" />
-                    <span className="text-sm">info@immotulear.mg</span>
+                    <a href="mailto:info@immotulear.mg" className="text-sm hover:text-primary">info@immotulear.mg</a>
                   </div>
                   <div className="flex items-center gap-3 justify-center">
                     <MapPin className="w-5 h-5 text-primary" />
@@ -148,9 +153,11 @@ function Prestation() {
                   </div>
                 </div>
 
-                <Button variant="accent" size="lg">
-                  Demander un rendez-vous
-                </Button>
+                <Link to={`/contact?sujet=${encodeURIComponent("Demande de rendez-vous")}`}>
+                  <Button variant="accent" size="lg">
+                    Demander un rendez-vous
+                  </Button>
+                </Link>
               </CardContent>
             </Card>
           </div>

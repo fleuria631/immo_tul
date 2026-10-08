@@ -3,8 +3,10 @@ import Footer from "@/components/Footer";
 import { Card, CardContent } from "@/components/ui/card";
 import { Handshake, Star, Globe } from "lucide-react";
 import { motion } from "framer-motion";
+import { usePageTitle } from "@/hooks/usePageTitle";
 
 function Apropos() {
+  usePageTitle("À propos");
   const fadeUpVariant = {
     hidden: { opacity: 0, y: 40 },
     visible: { opacity: 1, y: 0, transition: { duration: 0.8, ease: "easeOut" } }
@@ -30,7 +32,7 @@ function Apropos() {
           transition={{ duration: 1.2 }}
           className="absolute inset-0"
         >
-          <img src="image/Vclaire.jpg" alt="A propos" className="w-full h-full object-cover" />
+          <img src="/image/Vclaire.jpg" alt="A propos" className="w-full h-full object-cover" />
           <div className="absolute inset-0 bg-gradient-to-b from-black/60 via-black/40 to-black/70" />
         </motion.div>
         
@@ -86,12 +88,12 @@ function Apropos() {
               className="grid grid-cols-2 gap-4"
             >
               <img
-                src="image/Vclaire.jpg"
+                src="/image/Vclaire.jpg"
                 alt="ImmoTuléar"
                 className="rounded-2xl w-full h-64 object-cover shadow-lg"
               />
               <img
-                src="image/Vclaire2.jpg"
+                src="/image/Vclaire2.jpg"
                 alt="ImmoTuléar"
                 className="rounded-2xl w-full h-64 object-cover shadow-lg mt-8"
               />
@@ -112,12 +114,12 @@ function Apropos() {
               className="order-2 lg:order-1 grid grid-cols-2 gap-4"
             >
               <img
-                src="image/Vclaire.jpg"
+                src="/image/Vclaire.jpg"
                 alt="Qualité"
                 className="rounded-2xl w-full h-64 object-cover shadow-lg mt-8"
               />
               <img
-                src="image/Vclaire2.jpg"
+                src="/image/Vclaire2.jpg"
                 alt="Qualité"
                 className="rounded-2xl w-full h-64 object-cover shadow-lg"
               />

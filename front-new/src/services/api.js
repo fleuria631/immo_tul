@@ -1,4 +1,16 @@
 export const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001/api';
+if (import.meta.env.PROD && !import.meta.env.VITE_API_URL) {
+  console.warn('VITE_API_URL non défini : le site appelle http://localhost:3001/api (voir .env.production.example)');
+}
+// Origine du serveur (sans /api) : sert les images uploadées
+const SERVER_URL = API_URL.replace(/\/api\/?$/, '');
+
+const toQuery = (params = {}) => {
+  const cleanParams = Object.fromEntries(
+    Object.entries(params).filter(([, v]) => v != null && v !== '')
+  );
+  return new URLSearchParams(cleanParams).toString();
+};
 
 export const fetchApi = async (endpoint, options = {}) => {
   const token = localStorage.getItem('adminToken');
@@ -23,7 +35,15 @@ export const fetchApi = async (endpoint, options = {}) => {
 
   if (!response.ok) {
     const errorData = await response.json().catch(() => ({}));
-    throw new Error(errorData.error || `Erreur serveur: ${response.status}`);
+    // Jeton expiré ou invalide : on déconnecte et on prévient l'application
+    if (response.status === 401 && token && endpoint !== '/auth/login' && !options.keepSession) {
+      localStorage.removeItem('adminToken');
+      window.dispatchEvent(new CustomEvent('auth:expired'));
+    }
+    const message = errorData.error
+      || (Array.isArray(errorData.errors) && errorData.errors.map((e) => e.msg).join(', '))
+      || `Erreur serveur: ${response.status}`;
+    throw new Error(message);
   }
 
   return response.json();
@@ -42,8 +62,25 @@ export const getMe = async () => {
   });
 };
 
-export const getProperties = async () => {
-  return fetchApi('/properties', {
+export const updateMe = async (data) => {
+  // keepSession : un mauvais mot de passe actuel renvoie 401 sans déconnecter
+  return fetchApi('/auth/me', { method: 'PUT', body: JSON.stringify(data), keepSession: true });
+};
+
+export const getUsers = async () => fetchApi('/auth/users', { method: 'GET' });
+
+export const createUser = async (data) => {
+  return fetchApi('/auth/register', { method: 'POST', body: JSON.stringify(data) });
+};
+
+export const deleteUser = async (id) => fetchApi(`/auth/users/${id}`, { method: 'DELETE' });
+
+export const updatePropertyStatus = async (id, status) => {
+  return fetchApi(`/properties/${id}/status`, { method: 'PATCH', body: JSON.stringify({ status }) });
+};
+
+export const getProperties = async (params = {}) => {
+  return fetchApi(`/properties?${toQuery(params)}`, {
     method: 'GET',
   });
 };
@@ -87,11 +124,15 @@ export const getAdminStats = async () => {
 };
 
 export const getPublicProperties = async (params = {}) => {
-  const cleanParams = Object.fromEntries(
-    Object.entries(params).filter(([_, v]) => v != null && v !== '')
-  );
-  const query = new URLSearchParams(cleanParams).toString();
-  return fetchApi(`/properties?${query}`, { method: 'GET' });
+  return fetchApi(`/properties?${toQuery(params)}`, { method: 'GET' });
+};
+
+export const getPropertyFilters = async () => {
+  return fetchApi('/properties/stats', { method: 'GET' });
+};
+
+export const getSimilarProperties = async (id, limit = 3) => {
+  return fetchApi(`/properties/${id}/similar?limit=${limit}`, { method: 'GET' });
 };
 
 export const getPropertyById = async (id) => {
@@ -105,10 +146,32 @@ export const submitContact = async (data) => {
   });
 };
 
+// --- Messagerie admin ---
+export const getContacts = async (params = {}) => {
+  return fetchApi(`/contacts?${toQuery(params)}`, { method: 'GET' });
+};
+
+export const getContactById = async (id) => {
+  return fetchApi(`/contacts/${id}`, { method: 'GET' });
+};
+
+export const updateContactStatus = async (id, status) => {
+  return fetchApi(`/contacts/${id}/status`, {
+    method: 'PUT',
+    body: JSON.stringify({ status }),
+  });
+};
+
+export const deleteContact = async (id) => {
+  return fetchApi(`/contacts/${id}`, { method: 'DELETE' });
+};
+
+export const PLACEHOLDER_IMAGE = '/placeholder.svg';
+
 export const getImageUrl = (imagePath) => {
-  if (!imagePath) return '/placeholder.jpg';
+  if (!imagePath) return PLACEHOLDER_IMAGE;
   if (imagePath.startsWith('http')) return imagePath;
-  if (imagePath.startsWith('uploads/')) return `http://localhost:3001/${imagePath}`;
+  if (imagePath.startsWith('uploads/')) return `${SERVER_URL}/${imagePath}`;
   if (imagePath.startsWith('/')) return imagePath;
   return `/${imagePath}`;
 };
