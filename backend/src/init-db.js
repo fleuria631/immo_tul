@@ -74,6 +74,7 @@ const initDB = async () => {
     await client.query(`CREATE INDEX IF NOT EXISTS idx_contacts_status ON contacts(status)`);
     await client.query(`CREATE INDEX IF NOT EXISTS idx_contacts_property_id ON contacts(property_id)`);
     await client.query(`CREATE INDEX IF NOT EXISTS idx_stats_property_id ON stats(property_id)`);
+    await client.query(`CREATE INDEX IF NOT EXISTS idx_stats_date ON stats(date)`);
     await client.query(`CREATE INDEX IF NOT EXISTS idx_users_email ON users(email)`);
 
     // Create updated_at trigger function

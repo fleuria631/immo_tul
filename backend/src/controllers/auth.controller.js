@@ -11,13 +11,10 @@ const generateToken = (user) => {
 // POST /api/auth/register
 export const register = async (req, res, next) => {
   try {
-    const { name, email, password, role } = req.body;
+    const { name, email, password, role = 'agent' } = req.body;
 
-    // Vérifier si un admin existe déjà (premier utilisateur = libre, sinon auth requise)
-    const countResult = await db.query('SELECT COUNT(*) FROM users');
-    const userCount = parseInt(countResult.rows[0].count);
-    if (userCount > 0 && !req.user) {
-      return res.status(403).json({ error: 'Inscription réservée aux administrateurs connectés' });
+    if (!['admin', 'agent'].includes(role)) {
+      return res.status(400).json({ error: 'Rôle invalide (admin ou agent)' });
     }
 
     const hashedPassword = await bcrypt.hash(password, 12);
@@ -25,15 +22,11 @@ export const register = async (req, res, next) => {
       `INSERT INTO users (name, email, password, role)
        VALUES ($1, $2, $3, $4)
        RETURNING id, name, email, role`,
-      [name, email, hashedPassword, role || 'admin']
+      [name, email, hashedPassword, role]
     );
 
-    const user = rows[0];
-    const token = generateToken(user);
-    res.status(201).json({
-      token,
-      user: { id: user.id, name: user.name, email: user.email, role: user.role },
-    });
+    // Pas de token : le compte est créé par un admin déjà connecté
+    res.status(201).json({ user: rows[0] });
   } catch (error) {
     next(error);
   }
@@ -81,7 +74,19 @@ export const getMe = async (req, res, next) => {
 // PUT /api/auth/me
 export const updateMe = async (req, res, next) => {
   try {
-    const { name, email, password } = req.body;
+    const { name, email, password, currentPassword } = req.body;
+
+    // Changer l'email ou le mot de passe exige le mot de passe actuel
+    if (password || email) {
+      const { rows: current } = await db.query('SELECT email, password FROM users WHERE id = $1', [req.user.id]);
+      const sensitiveChange = password || (email && email !== current[0].email);
+      if (sensitiveChange) {
+        if (!currentPassword || !(await bcrypt.compare(currentPassword, current[0].password))) {
+          return res.status(401).json({ error: 'Mot de passe actuel incorrect' });
+        }
+      }
+    }
+
     const fields = [];
     const values = [];
     let paramIndex = 1;
@@ -95,6 +100,9 @@ export const updateMe = async (req, res, next) => {
       values.push(email);
     }
     if (password) {
+      if (password.length < 6) {
+        return res.status(400).json({ error: 'Le mot de passe doit faire au moins 6 caractères' });
+      }
       fields.push(`password = $${paramIndex++}`);
       values.push(await bcrypt.hash(password, 12));
     }
@@ -110,6 +118,43 @@ export const updateMe = async (req, res, next) => {
       values
     );
     res.json(rows[0]);
+  } catch (error) {
+    next(error);
+  }
+};
+
+// GET /api/auth/users — Liste des comptes (admin)
+export const listUsers = async (req, res, next) => {
+  try {
+    const { rows } = await db.query(
+      'SELECT id, name, email, role, created_at AS "createdAt" FROM users ORDER BY created_at ASC'
+    );
+    res.json(rows);
+  } catch (error) {
+    next(error);
+  }
+};
+
+// DELETE /api/auth/users/:id — Supprimer un compte (admin, pas soi-même)
+export const deleteUser = async (req, res, next) => {
+  try {
+    const id = parseInt(req.params.id);
+    if (id === req.user.id) {
+      return res.status(400).json({ error: 'Vous ne pouvez pas supprimer votre propre compte' });
+    }
+    const { rows: target } = await db.query('SELECT role FROM users WHERE id = $1', [id]);
+    if (target.length === 0) {
+      return res.status(404).json({ error: 'Utilisateur non trouvé' });
+    }
+    // Garde toujours au moins un administrateur
+    if (target[0].role === 'admin') {
+      const { rows } = await db.query("SELECT COUNT(*) FROM users WHERE role = 'admin'");
+      if (parseInt(rows[0].count) <= 1) {
+        return res.status(400).json({ error: 'Impossible de supprimer le dernier administrateur' });
+      }
+    }
+    await db.query('DELETE FROM users WHERE id = $1', [id]);
+    res.json({ message: 'Utilisateur supprimé' });
   } catch (error) {
     next(error);
   }

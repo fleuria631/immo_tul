@@ -11,6 +11,8 @@ export const dashboard = async (req, res, next) => {
       propertiesByActionResult,
       recentPropertiesResult,
       statsAggResult,
+      timelineResult,
+      topPropertiesResult,
     ] = await Promise.all([
       db.query('SELECT COUNT(*) FROM properties'),
       db.query('SELECT COUNT(*) FROM contacts'),
@@ -22,6 +24,25 @@ export const dashboard = async (req, res, next) => {
          FROM properties ORDER BY created_at DESC LIMIT 5`
       ),
       db.query('SELECT COALESCE(SUM(views), 0) AS total_views, COALESCE(SUM(inquiries), 0) AS total_inquiries FROM stats'),
+      // Vues des biens et messages reçus par jour sur les 30 derniers jours (jours sans activité inclus).
+      // Les demandes viennent de la table contacts : tous les messages, liés à un bien ou non.
+      db.query(
+        `SELECT to_char(d.day, 'YYYY-MM-DD') AS date,
+                COALESCE((SELECT SUM(s.views) FROM stats s WHERE s.date::date = d.day::date), 0) AS views,
+                (SELECT COUNT(*) FROM contacts c WHERE c.created_at::date = d.day::date) AS inquiries
+         FROM generate_series(CURRENT_DATE - 29, CURRENT_DATE, INTERVAL '1 day') AS d(day)
+         ORDER BY d.day`
+      ),
+      // Biens les plus consultés
+      db.query(
+        `SELECT p.id, p.titre, p.type, p.action_type AS "actionType",
+                SUM(s.views) AS views, SUM(s.inquiries) AS inquiries
+         FROM stats s
+         JOIN properties p ON p.id = s.property_id
+         GROUP BY p.id
+         ORDER BY views DESC, inquiries DESC
+         LIMIT 5`
+      ),
     ]);
 
     res.json({
@@ -41,6 +62,16 @@ export const dashboard = async (req, res, next) => {
         _count: parseInt(r.count),
       })),
       recentProperties: recentPropertiesResult.rows,
+      timeline: timelineResult.rows.map(r => ({
+        date: r.date,
+        views: parseInt(r.views),
+        inquiries: parseInt(r.inquiries),
+      })),
+      topProperties: topPropertiesResult.rows.map(r => ({
+        ...r,
+        views: parseInt(r.views),
+        inquiries: parseInt(r.inquiries),
+      })),
     });
   } catch (error) {
     next(error);
