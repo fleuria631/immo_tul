@@ -1,4 +1,24 @@
 import db from '../db.js';
+import { sendMail, agencyRecipients } from '../services/mailer.js';
+import { newContactEmail, contactAcknowledgementEmail } from '../services/emailTemplates.js';
+
+// Prévient l'agence et confirme la réception au visiteur. Les erreurs sont journalisées
+// par le service d'envoi : elles n'affectent jamais l'enregistrement du message.
+const sendContactEmails = async (contact) => {
+  let property = null;
+  if (contact.propertyId) {
+    const { rows } = await db.query('SELECT id, titre FROM properties WHERE id = $1', [contact.propertyId]);
+    property = rows[0] || null;
+  }
+  const recipients = agencyRecipients();
+  const sends = [sendMail({ to: contact.email, ...contactAcknowledgementEmail(contact, property) })];
+  if (recipients.length > 0) {
+    sends.push(sendMail({ to: recipients, ...newContactEmail(contact, property) }));
+  } else {
+    console.warn("⚠️  MAIL_TO vide : aucune notification envoyée à l'agence");
+  }
+  await Promise.allSettled(sends);
+};
 
 // Helper: map contact row from snake_case to camelCase
 const mapContact = (row) => {
@@ -42,6 +62,9 @@ export const create = async (req, res, next) => {
         // Silently ignore stats errors
       }
     }
+
+    // Envoi en arrière-plan : le visiteur n'attend pas le serveur SMTP
+    sendContactEmails(contact).catch((err) => console.error('Erreur lors des emails de contact :', err.message));
 
     res.status(201).json(contact);
   } catch (error) {

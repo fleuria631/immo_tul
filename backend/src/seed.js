@@ -6,6 +6,20 @@ async function main() {
   console.log('Debut du seed de la base de donnees...');
 
   try {
+    // Garde-fou : le seed efface tous les biens existants
+    const force = process.argv.includes('--force');
+    const { rows: countRows } = await db.query('SELECT COUNT(*) FROM properties');
+    const existing = parseInt(countRows[0].count);
+    if (existing > 0 && !force) {
+      console.error(`Arret : la base contient deja ${existing} bien(s), que le seed supprimerait.`);
+      console.error('Pour remplacer quand meme toutes les annonces : npm run db:seed -- --force');
+      process.exit(1);
+    }
+    if (process.env.NODE_ENV === 'production' && !force) {
+      console.error("Arret : seed refuse en production (ajoutez --force si c'est vraiment voulu).");
+      process.exit(1);
+    }
+
     // 1. Creer l'administrateur
     const hashedPassword = await bcrypt.hash(process.env.ADMIN_PASSWORD || 'admin123', 12);
     
@@ -15,7 +29,7 @@ async function main() {
        ON CONFLICT (email) DO NOTHING`,
       [process.env.ADMIN_EMAIL || 'admin@immotulear.mg', hashedPassword, 'Admin ImmoTulear', process.env.ADMIN_ROLE || 'admin']
     );
-    console.log('Admin cree/verifie (admin@immotulear.mg / admin123)');
+    console.log(`Admin cree/verifie : ${process.env.ADMIN_EMAIL || 'admin@immotulear.mg'} (mot de passe : ADMIN_PASSWORD du fichier .env)`);
 
     // 2. Nettoyer les proprietes existantes (optionnel, selon le comportement voulu)
     await db.query('DELETE FROM properties');
