@@ -1,7 +1,5 @@
 import jwt from 'jsonwebtoken';
-import { PrismaClient } from '@prisma/client';
-
-const prisma = new PrismaClient();
+import db from '../db.js';
 
 // Vérifier le token JWT et attacher l'utilisateur à la requête
 export const authenticate = async (req, res, next) => {
@@ -14,7 +12,8 @@ export const authenticate = async (req, res, next) => {
     const token = authHeader.split(' ')[1];
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
 
-    const user = await prisma.user.findUnique({ where: { id: decoded.id } });
+    const { rows } = await db.query('SELECT id, email, name, role FROM users WHERE id = $1', [decoded.id]);
+    const user = rows[0];
     if (!user) {
       return res.status(401).json({ error: 'Utilisateur non trouvé' });
     }

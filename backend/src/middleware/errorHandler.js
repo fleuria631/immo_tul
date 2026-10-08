@@ -2,12 +2,22 @@
 export const errorHandler = (err, req, res, next) => {
   console.error('❌ Erreur:', err.message);
 
-  // Erreurs Prisma
-  if (err.code === 'P2002') {
-    return res.status(409).json({ error: 'Cette valeur existe déjà', field: err.meta?.target });
+  // Erreurs PostgreSQL
+  // 23505 = unique_violation (remplace Prisma P2002)
+  if (err.code === '23505') {
+    return res.status(409).json({ error: 'Cette valeur existe déjà', field: err.constraint });
   }
-  if (err.code === 'P2025') {
-    return res.status(404).json({ error: 'Ressource non trouvée' });
+  // 23503 = foreign_key_violation
+  if (err.code === '23503') {
+    return res.status(400).json({ error: 'Référence invalide: l\'enregistrement lié n\'existe pas' });
+  }
+  // 23502 = not_null_violation (remplace Prisma P2025 en partie)
+  if (err.code === '23502') {
+    return res.status(400).json({ error: `Le champ '${err.column}' est requis` });
+  }
+  // 22P02 = invalid_text_representation (ex: UUID/integer invalide)
+  if (err.code === '22P02') {
+    return res.status(400).json({ error: 'Format de données invalide' });
   }
 
   // Erreurs de validation

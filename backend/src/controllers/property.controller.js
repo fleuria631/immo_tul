@@ -1,58 +1,111 @@
-import { PrismaClient } from '@prisma/client';
+import db from '../db.js';
 
-const prisma = new PrismaClient();
+// Helper: map property row from snake_case DB columns to camelCase API fields
+const mapProperty = (row) => {
+  if (!row) return null;
+  return {
+    id: row.id,
+    titre: row.titre,
+    description: row.description,
+    prix: row.prix,
+    priceNumeric: row.price_numeric,
+    type: row.type,
+    location: row.location,
+    beds: row.beds,
+    baths: row.baths,
+    area: row.area,
+    status: row.status,
+    actionType: row.action_type,
+    features: JSON.parse(row.features),
+    details: JSON.parse(row.details),
+    images: JSON.parse(row.images),
+    image: row.image,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+  };
+};
 
 // GET /api/properties — Liste publique avec filtres, tri et pagination
 export const getAll = async (req, res, next) => {
   try {
     const { type, actionType, status, location, search, priceMin, priceMax, beds, sort, page = 1, limit = 12 } = req.query;
 
-    const where = {};
-    if (type) where.type = type;
-    if (actionType) where.actionType = actionType;
-    if (status) where.status = status;
-    if (location) where.location = { contains: location };
+    const conditions = [];
+    const params = [];
+
+    if (type) {
+      params.push(type);
+      conditions.push(`type = $${params.length}`);
+    }
+    if (actionType) {
+      params.push(actionType);
+      conditions.push(`action_type = $${params.length}`);
+    }
+    if (status) {
+      params.push(status);
+      conditions.push(`status = $${params.length}`);
+    }
+    if (location) {
+      params.push(`%${location}%`);
+      conditions.push(`location ILIKE $${params.length}`);
+    }
     if (search) {
-      where.OR = [
-        { titre: { contains: search } },
-        { location: { contains: search } },
-        { description: { contains: search } },
-        { type: { contains: search } }
-      ];
+      params.push(`%${search}%`);
+      const idx = params.length;
+      conditions.push(`(titre ILIKE $${idx} OR location ILIKE $${idx} OR description ILIKE $${idx} OR type ILIKE $${idx})`);
     }
-    if (beds) where.beds = { gte: parseInt(beds) };
-    if (priceMin || priceMax) {
-      where.priceNumeric = {};
-      if (priceMin) where.priceNumeric.gte = parseFloat(priceMin);
-      if (priceMax) where.priceNumeric.lte = parseFloat(priceMax);
+    if (beds) {
+      params.push(parseInt(beds));
+      conditions.push(`beds >= $${params.length}`);
+    }
+    if (priceMin) {
+      params.push(parseFloat(priceMin));
+      conditions.push(`price_numeric >= $${params.length}`);
+    }
+    if (priceMax) {
+      params.push(parseFloat(priceMax));
+      conditions.push(`price_numeric <= $${params.length}`);
     }
 
-    let orderBy = { createdAt: 'desc' };
-    if (sort === 'price-asc') orderBy = { priceNumeric: 'asc' };
-    else if (sort === 'price-desc') orderBy = { priceNumeric: 'desc' };
-    else if (sort === 'newest') orderBy = { createdAt: 'desc' };
+    const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
 
-    const skip = (parseInt(page) - 1) * parseInt(limit);
-    const [properties, total] = await Promise.all([
-      prisma.property.findMany({ where, orderBy, skip, take: parseInt(limit) }),
-      prisma.property.count({ where }),
+    // Sort mapping
+    let orderBy = 'created_at DESC';
+    if (sort === 'price-asc') orderBy = 'price_numeric ASC';
+    else if (sort === 'price-desc') orderBy = 'price_numeric DESC';
+    else if (sort === 'newest') orderBy = 'created_at DESC';
+
+    const pageNum = parseInt(page);
+    const limitNum = parseInt(limit);
+    const offset = (pageNum - 1) * limitNum;
+
+    const countParams = [...params];
+    params.push(limitNum);
+    params.push(offset);
+
+    const [propertiesResult, countResult] = await Promise.all([
+      db.query(
+        `SELECT * FROM properties ${whereClause}
+         ORDER BY ${orderBy}
+         LIMIT $${params.length - 1} OFFSET $${params.length}`,
+        params
+      ),
+      db.query(
+        `SELECT COUNT(*) FROM properties ${whereClause}`,
+        countParams
+      ),
     ]);
 
-    // Parser les champs JSON
-    const parsed = properties.map(p => ({
-      ...p,
-      features: JSON.parse(p.features),
-      details: JSON.parse(p.details),
-      images: JSON.parse(p.images),
-    }));
+    const properties = propertiesResult.rows.map(mapProperty);
+    const total = parseInt(countResult.rows[0].count);
 
     res.json({
-      properties: parsed,
+      properties,
       pagination: {
-        page: parseInt(page),
-        limit: parseInt(limit),
+        page: pageNum,
+        limit: limitNum,
         total,
-        pages: Math.ceil(total / parseInt(limit)),
+        pages: Math.ceil(total / limitNum),
       },
     });
   } catch (error) {
@@ -63,12 +116,16 @@ export const getAll = async (req, res, next) => {
 // GET /api/properties/stats — Compteurs publics
 export const getStats = async (req, res, next) => {
   try {
-    const [totalSale, totalRent, byType] = await Promise.all([
-      prisma.property.count({ where: { actionType: 'sale' } }),
-      prisma.property.count({ where: { actionType: 'rent' } }),
-      prisma.property.groupBy({ by: ['type'], _count: true }),
+    const [totalSaleResult, totalRentResult, byTypeResult] = await Promise.all([
+      db.query("SELECT COUNT(*) FROM properties WHERE action_type = 'sale'"),
+      db.query("SELECT COUNT(*) FROM properties WHERE action_type = 'rent'"),
+      db.query('SELECT type, COUNT(*) AS count FROM properties GROUP BY type'),
     ]);
-    res.json({ totalSale, totalRent, byType });
+    res.json({
+      totalSale: parseInt(totalSaleResult.rows[0].count),
+      totalRent: parseInt(totalRentResult.rows[0].count),
+      byType: byTypeResult.rows.map(r => ({ type: r.type, _count: parseInt(r.count) })),
+    });
   } catch (error) {
     next(error);
   }
@@ -77,29 +134,26 @@ export const getStats = async (req, res, next) => {
 // GET /api/properties/:id — Détail + incrément vues
 export const getById = async (req, res, next) => {
   try {
-    const property = await prisma.property.findUnique({ where: { id: parseInt(req.params.id) } });
-    if (!property) {
+    const { rows } = await db.query('SELECT * FROM properties WHERE id = $1', [parseInt(req.params.id)]);
+    if (rows.length === 0) {
       return res.status(404).json({ error: 'Propriété non trouvée' });
     }
+
+    const property = mapProperty(rows[0]);
 
     // Incrémenter les vues
     const today = new Date();
     today.setHours(0, 0, 0, 0);
-    await prisma.stats.upsert({
-      where: { id: -1 }, // force create
-      create: { propertyId: property.id, views: 1, date: today },
-      update: { views: { increment: 1 } },
-    }).catch(() => {
-      // En cas d'erreur d'upsert, créer directement
-      return prisma.stats.create({ data: { propertyId: property.id, views: 1, date: today } });
-    });
+    try {
+      await db.query(
+        `INSERT INTO stats (property_id, views, date) VALUES ($1, 1, $2)`,
+        [property.id, today]
+      );
+    } catch {
+      // Silently ignore stats errors
+    }
 
-    res.json({
-      ...property,
-      features: JSON.parse(property.features),
-      details: JSON.parse(property.details),
-      images: JSON.parse(property.images),
-    });
+    res.json(property);
   } catch (error) {
     next(error);
   }
@@ -110,27 +164,25 @@ export const create = async (req, res, next) => {
   try {
     const { titre, description, prix, priceNumeric, type, location, beds, baths, area, status, actionType, features, details, images, image } = req.body;
 
-    const property = await prisma.property.create({
-      data: {
-        titre, description, prix,
-        priceNumeric: parseFloat(priceNumeric),
+    const { rows } = await db.query(
+      `INSERT INTO properties
+       (titre, description, prix, price_numeric, type, location, beds, baths, area, status, action_type, features, details, images, image)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
+       RETURNING *`,
+      [
+        titre, description, prix, parseFloat(priceNumeric),
         type, location,
-        beds: beds ? parseInt(beds) : null,
-        baths: baths ? parseInt(baths) : null,
-        area, status: status || 'available', actionType,
-        features: JSON.stringify(features || []),
-        details: JSON.stringify(details || {}),
-        images: JSON.stringify(images || []),
-        image: image || '',
-      },
-    });
+        beds ? parseInt(beds) : null,
+        baths ? parseInt(baths) : null,
+        area, status || 'available', actionType,
+        JSON.stringify(features || []),
+        JSON.stringify(details || {}),
+        JSON.stringify(images || []),
+        image || '',
+      ]
+    );
 
-    res.status(201).json({
-      ...property,
-      features: JSON.parse(property.features),
-      details: JSON.parse(property.details),
-      images: JSON.parse(property.images),
-    });
+    res.status(201).json(mapProperty(rows[0]));
   } catch (error) {
     next(error);
   }
@@ -139,27 +191,50 @@ export const create = async (req, res, next) => {
 // PUT /api/properties/:id — Modifier une propriété (authentifié)
 export const update = async (req, res, next) => {
   try {
-    const { features, details, images, beds, baths, priceNumeric, ...rest } = req.body;
-    const data = { ...rest };
+    const { titre, description, prix, priceNumeric, type, location, beds, baths, area, status, actionType, features, details, images, image } = req.body;
 
-    if (features) data.features = JSON.stringify(features);
-    if (details) data.details = JSON.stringify(details);
-    if (images) data.images = JSON.stringify(images);
-    if (beds !== undefined) data.beds = beds ? parseInt(beds) : null;
-    if (baths !== undefined) data.baths = baths ? parseInt(baths) : null;
-    if (priceNumeric !== undefined) data.priceNumeric = parseFloat(priceNumeric);
+    const fields = [];
+    const values = [];
+    let idx = 1;
 
-    const property = await prisma.property.update({
-      where: { id: parseInt(req.params.id) },
-      data,
-    });
+    const addField = (col, val) => {
+      if (val !== undefined) {
+        fields.push(`${col} = $${idx++}`);
+        values.push(val);
+      }
+    };
 
-    res.json({
-      ...property,
-      features: JSON.parse(property.features),
-      details: JSON.parse(property.details),
-      images: JSON.parse(property.images),
-    });
+    addField('titre', titre);
+    addField('description', description);
+    addField('prix', prix);
+    if (priceNumeric !== undefined) { addField('price_numeric', parseFloat(priceNumeric)); }
+    addField('type', type);
+    addField('location', location);
+    if (beds !== undefined) { addField('beds', beds ? parseInt(beds) : null); }
+    if (baths !== undefined) { addField('baths', baths ? parseInt(baths) : null); }
+    addField('area', area);
+    addField('status', status);
+    addField('action_type', actionType);
+    if (features !== undefined) { addField('features', JSON.stringify(features)); }
+    if (details !== undefined) { addField('details', JSON.stringify(details)); }
+    if (images !== undefined) { addField('images', JSON.stringify(images)); }
+    addField('image', image);
+
+    if (fields.length === 0) {
+      return res.status(400).json({ error: 'Aucun champ à modifier' });
+    }
+
+    values.push(parseInt(req.params.id));
+    const { rows } = await db.query(
+      `UPDATE properties SET ${fields.join(', ')} WHERE id = $${idx} RETURNING *`,
+      values
+    );
+
+    if (rows.length === 0) {
+      return res.status(404).json({ error: 'Propriété non trouvée' });
+    }
+
+    res.json(mapProperty(rows[0]));
   } catch (error) {
     next(error);
   }
@@ -169,8 +244,13 @@ export const update = async (req, res, next) => {
 export const remove = async (req, res, next) => {
   try {
     const id = parseInt(req.params.id);
-    await prisma.stats.deleteMany({ where: { propertyId: id } });
-    await prisma.property.delete({ where: { id } });
+    await db.query('DELETE FROM stats WHERE property_id = $1', [id]);
+    const { rowCount } = await db.query('DELETE FROM properties WHERE id = $1', [id]);
+
+    if (rowCount === 0) {
+      return res.status(404).json({ error: 'Propriété non trouvée' });
+    }
+
     res.json({ message: 'Propriété supprimée' });
   } catch (error) {
     next(error);

@@ -1,46 +1,46 @@
-import { PrismaClient } from '@prisma/client';
-
-const prisma = new PrismaClient();
+import db from '../db.js';
 
 // GET /api/stats/dashboard
 export const dashboard = async (req, res, next) => {
   try {
     const [
-      totalProperties,
-      totalContacts,
-      newContacts,
-      propertiesByType,
-      propertiesByAction,
-      recentProperties
+      totalPropertiesResult,
+      totalContactsResult,
+      newContactsResult,
+      propertiesByTypeResult,
+      propertiesByActionResult,
+      recentPropertiesResult,
+      statsAggResult,
     ] = await Promise.all([
-      prisma.property.count(),
-      prisma.contact.count(),
-      prisma.contact.count({ where: { status: 'new' } }),
-      prisma.property.groupBy({ by: ['type'], _count: true }),
-      prisma.property.groupBy({ by: ['actionType'], _count: true }),
-      prisma.property.findMany({
-        take: 5,
-        orderBy: { createdAt: 'desc' },
-        select: { id: true, titre: true, type: true, priceNumeric: true, actionType: true, status: true, createdAt: true }
-      })
+      db.query('SELECT COUNT(*) FROM properties'),
+      db.query('SELECT COUNT(*) FROM contacts'),
+      db.query("SELECT COUNT(*) FROM contacts WHERE status = 'new'"),
+      db.query('SELECT type, COUNT(*) AS count FROM properties GROUP BY type'),
+      db.query('SELECT action_type, COUNT(*) AS count FROM properties GROUP BY action_type'),
+      db.query(
+        `SELECT id, titre, type, price_numeric AS "priceNumeric", action_type AS "actionType", status, created_at AS "createdAt"
+         FROM properties ORDER BY created_at DESC LIMIT 5`
+      ),
+      db.query('SELECT COALESCE(SUM(views), 0) AS total_views, COALESCE(SUM(inquiries), 0) AS total_inquiries FROM stats'),
     ]);
-
-    // Aggregate views from stats
-    const stats = await prisma.stats.aggregate({
-      _sum: { views: true, inquiries: true }
-    });
 
     res.json({
       overview: {
-        totalProperties,
-        totalContacts,
-        newContacts,
-        totalViews: stats._sum.views || 0,
-        totalInquiries: stats._sum.inquiries || 0
+        totalProperties: parseInt(totalPropertiesResult.rows[0].count),
+        totalContacts: parseInt(totalContactsResult.rows[0].count),
+        newContacts: parseInt(newContactsResult.rows[0].count),
+        totalViews: parseInt(statsAggResult.rows[0].total_views),
+        totalInquiries: parseInt(statsAggResult.rows[0].total_inquiries),
       },
-      propertiesByType,
-      propertiesByAction,
-      recentProperties
+      propertiesByType: propertiesByTypeResult.rows.map(r => ({
+        type: r.type,
+        _count: parseInt(r.count),
+      })),
+      propertiesByAction: propertiesByActionResult.rows.map(r => ({
+        actionType: r.action_type,
+        _count: parseInt(r.count),
+      })),
+      recentProperties: recentPropertiesResult.rows,
     });
   } catch (error) {
     next(error);
@@ -51,30 +51,37 @@ export const dashboard = async (req, res, next) => {
 export const propertyStats = async (req, res, next) => {
   try {
     const propertyId = parseInt(req.params.id);
-    
-    // Check if property exists
-    const property = await prisma.property.findUnique({
-      where: { id: propertyId },
-      select: { id: true, titre: true }
-    });
 
-    if (!property) {
+    // Check if property exists
+    const { rows: propRows } = await db.query(
+      'SELECT id, titre FROM properties WHERE id = $1',
+      [propertyId]
+    );
+
+    if (propRows.length === 0) {
       return res.status(404).json({ error: 'Propriété non trouvée' });
     }
 
-    const stats = await prisma.stats.findMany({
-      where: { propertyId },
-      orderBy: { date: 'asc' },
-      take: 30 // Last 30 days
-    });
+    const { rows: statsRows } = await db.query(
+      'SELECT * FROM stats WHERE property_id = $1 ORDER BY date ASC LIMIT 30',
+      [propertyId]
+    );
+
+    const history = statsRows.map(s => ({
+      id: s.id,
+      propertyId: s.property_id,
+      views: s.views,
+      inquiries: s.inquiries,
+      date: s.date,
+    }));
 
     res.json({
-      property,
-      history: stats,
-      totals: stats.reduce((acc, curr) => ({
+      property: propRows[0],
+      history,
+      totals: history.reduce((acc, curr) => ({
         views: acc.views + curr.views,
-        inquiries: acc.inquiries + curr.inquiries
-      }), { views: 0, inquiries: 0 })
+        inquiries: acc.inquiries + curr.inquiries,
+      }), { views: 0, inquiries: 0 }),
     });
   } catch (error) {
     next(error);
