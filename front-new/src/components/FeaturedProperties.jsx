@@ -8,11 +8,17 @@ import { motion } from "framer-motion";
 
 const FeaturedProperties = () => {
   const [properties, setProperties] = useState([]);
+  const [loading, setLoading] = useState(true);
 
+  // Les biens disponibles en priorité ; à défaut, les plus récents quel que soit leur statut
   useEffect(() => {
-    getPublicProperties({ limit: 6 }).then(data => {
-      setProperties(data.properties || []);
-    }).catch(console.error);
+    let cancelled = false;
+    getPublicProperties({ limit: 6, status: "available" })
+      .then((data) => (data.properties?.length ? data : getPublicProperties({ limit: 6 })))
+      .then((data) => { if (!cancelled) setProperties(data.properties || []); })
+      .catch(console.error)
+      .finally(() => { if (!cancelled) setLoading(false); });
+    return () => { cancelled = true; };
   }, []);
 
   const containerVariants = {
@@ -47,6 +53,14 @@ const FeaturedProperties = () => {
             à Toliara et ses environs
           </p>
         </motion.div>
+
+        {loading && (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 mb-12" aria-busy="true">
+            {Array.from({ length: 3 }).map((_, i) => (
+              <div key={i} className="rounded-xl bg-secondary animate-pulse aspect-[4/5]" />
+            ))}
+          </div>
+        )}
 
         {/* Grid */}
         <motion.div 

@@ -6,6 +6,7 @@ const AuthContext = createContext();
 export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [sessionExpired, setSessionExpired] = useState(false);
 
   useEffect(() => {
     const initAuth = async () => {
@@ -14,7 +15,7 @@ export const AuthProvider = ({ children }) => {
         try {
           const userData = await getMe();
           setUser(userData);
-        } catch (error) {
+        } catch {
           localStorage.removeItem('adminToken');
         }
       }
@@ -23,9 +24,20 @@ export const AuthProvider = ({ children }) => {
     initAuth();
   }, []);
 
+  // Le client API signale un jeton expiré (il n'émet l'événement que si un jeton existait)
+  useEffect(() => {
+    const onExpired = () => {
+      setSessionExpired(true);
+      setUser(null);
+    };
+    window.addEventListener('auth:expired', onExpired);
+    return () => window.removeEventListener('auth:expired', onExpired);
+  }, []);
+
   const login = async (email, password) => {
     const data = await loginAdmin(email, password);
     localStorage.setItem('adminToken', data.token);
+    setSessionExpired(false);
     setUser(data.user);
   };
 
@@ -35,7 +47,7 @@ export const AuthProvider = ({ children }) => {
   };
 
   return (
-    <AuthContext.Provider value={{ user, login, logout, loading }}>
+    <AuthContext.Provider value={{ user, setUser, login, logout, loading, sessionExpired }}>
       {children}
     </AuthContext.Provider>
   );

@@ -1,8 +1,10 @@
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
 import PropertyList from "@/components/PropertyList";
+import { usePageTitle } from "@/hooks/usePageTitle";
 
 function Alouer() {
+  usePageTitle("Biens à louer");
   return (
     <>
       <Navbar />

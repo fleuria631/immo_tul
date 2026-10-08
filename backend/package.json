@@ -9,7 +9,12 @@
     "start": "node src/server.js",
     "db:init": "node src/init-db.js",
     "db:seed": "node src/seed.js",
-    "db:reset": "node src/init-db.js && node src/seed.js"
+    "db:reset": "node src/init-db.js && node src/seed.js",
+    "admin:create": "node createAdmin.js",
+    "env:init": "node scripts/env.js init",
+    "env:check": "node scripts/env.js check",
+    "env:secret": "node scripts/env.js secret",
+    "mail:test": "node scripts/mail-test.js"
   },
   "dependencies": {
     "bcryptjs": "^3.0.2",
@@ -22,6 +27,7 @@
     "jsonwebtoken": "^9.0.2",
     "morgan": "^1.10.0",
     "multer": "^1.4.5-lts.2",
+    "nodemailer": "^10.0.16",
     "pg": "^8.13.1"
   },
   "devDependencies": {

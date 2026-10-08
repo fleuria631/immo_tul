@@ -1,7 +1,7 @@
 import express from 'express';
 import multer from 'multer';
 import path from 'path';
-import { uploadFiles, deleteFile } from '../controllers/upload.controller.js';
+import { uploadFiles, deleteFile, UPLOAD_DIR } from '../controllers/upload.controller.js';
 import { authenticate } from '../middleware/auth.js';
 
 const router = express.Router();
@@ -9,12 +9,12 @@ const router = express.Router();
 // Configuration Multer
 const storage = multer.diskStorage({
   destination: (req, file, cb) => {
-    cb(null, process.env.UPLOAD_DIR || 'uploads/');
+    cb(null, UPLOAD_DIR);
   },
   filename: (req, file, cb) => {
     // Nom unique avec timestamp
     const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
-    cb(null, uniqueSuffix + path.extname(file.originalname));
+    cb(null, uniqueSuffix + path.extname(file.originalname).toLowerCase());
   }
 });
 
@@ -23,7 +23,9 @@ const fileFilter = (req, file, cb) => {
   if (file.mimetype.startsWith('image/')) {
     cb(null, true);
   } else {
-    cb(new Error('Seules les images sont autorisées!'), false);
+    const error = new Error('Seules les images sont autorisées');
+    error.status = 400;
+    cb(error, false);
   }
 };
 

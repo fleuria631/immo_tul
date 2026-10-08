@@ -4,3 +4,6 @@ uploads/
 prisma/*.db
 prisma/*.db-journal
 prisma/migrations/
+.npm-cache/
+.env.*
+!.env.example
