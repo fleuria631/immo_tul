@@ -46,7 +46,7 @@ services:
       context: ./front-new
     restart: unless-stopped
     ports:
-      - "3000:3000"
+      - "5999:5999"
     depends_on:
       - backend
     networks:

@@ -38,7 +38,7 @@ COPY --from=build /app/dist ./dist
 RUN addgroup -S immo && adduser -S immo -G immo && chown -R immo:immo /app
 USER immo
 
-EXPOSE 3000
+EXPOSE 5999
 
 # serve -s = mode SPA (redirige tout vers index.html)
-CMD ["serve", "-s", "dist", "-l", "3000"]
+CMD ["serve", "-s", "dist", "-l", "5999"]
