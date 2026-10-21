@@ -1,0 +1,91 @@
+# =============================================================
+#  Docker Compose — ImmoTuléar (Production sur IP avec Traefik)
+# =============================================================
+
+services:
+
+  # --- Reverse Proxy Traefik ---
+  traefik:
+    image: traefik:v3.4
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "8080:8080"  # Dashboard Traefik (http://IP_SERVEUR:8080)
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - ./traefik/traefik.yml:/etc/traefik/traefik.yml:ro
+      - ./traefik/dynamic.yml:/etc/traefik/dynamic.yml:ro
+      - traefik_logs:/var/log/traefik
+    networks:
+      - immo_network
+
+  # --- Base de données ---
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: immo_tul
+      POSTGRES_USER: immo_user
+      POSTGRES_PASSWORD: immo_tul
+    volumes:
+      - pg_data:/var/lib/postgresql/data
+    networks:
+      - immo_network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U immo_user -d immo_tul"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # --- Backend (API Node.js) ---
+  backend:
+    build: ./backend
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    env_file:
+      - ./backend/.env
+    environment:
+      DATABASE_URL: postgresql://immo_user:immo_tul@db:5432/immo_tul
+    volumes:
+      - uploads:/app/uploads
+    networks:
+      - immo_network
+    labels:
+      - "traefik.enable=true"
+      # Redirige /api et /uploads vers le backend
+      - "traefik.http.routers.backend.rule=PathPrefix(`/api`) || PathPrefix(`/uploads`)"
+      - "traefik.http.routers.backend.entrypoints=web"
+      - "traefik.http.routers.backend.priority=100"
+      - "traefik.http.routers.backend.middlewares=security-headers@file,rate-limit@file"
+      - "traefik.http.services.backend.loadbalancer.server.port=3001"
+
+  # --- Frontend (React SPA) ---
+  frontend:
+    build:
+      context: ./front-new
+      args:
+        VITE_API_URL: /api
+    restart: unless-stopped
+    depends_on:
+      - backend
+    networks:
+      - immo_network
+    labels:
+      - "traefik.enable=true"
+      # Redirige tout le reste vers le frontend SPA
+      - "traefik.http.routers.frontend.rule=PathPrefix(`/`)"
+      - "traefik.http.routers.frontend.entrypoints=web"
+      - "traefik.http.routers.frontend.priority=10"
+      - "traefik.http.routers.frontend.middlewares=gzip-compress@file,security-headers@file"
+      - "traefik.http.services.frontend.loadbalancer.server.port=3000"
+
+networks:
+  immo_network:
+    driver: bridge
+
+volumes:
+  pg_data:
+  uploads:
+  traefik_logs:
