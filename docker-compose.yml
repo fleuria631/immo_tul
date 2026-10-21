@@ -1,25 +1,10 @@
 # =============================================================
-#  Docker Compose — ImmoTuléar (Production sur IP avec Traefik)
+#  Docker Compose — ImmoTuléar (Production Directe)
 # =============================================================
 
 services:
 
-  # --- Reverse Proxy Traefik ---
-  traefik:
-    image: traefik:v3.4
-    restart: unless-stopped
-    ports:
-      - "80:80"
-      - "8080:8080"  # Dashboard Traefik (http://IP_SERVEUR:8080)
-    volumes:
-      - /var/run/docker.sock:/var/run/docker.sock:ro
-      - ./traefik/traefik.yml:/etc/traefik/traefik.yml:ro
-      - ./traefik/dynamic.yml:/etc/traefik/dynamic.yml:ro
-      - traefik_logs:/var/log/traefik
-    networks:
-      - immo_network
-
-  # --- Base de données ---
+  # --- Base de données PostgreSQL ---
   db:
     image: postgres:16-alpine
     restart: unless-stopped
@@ -37,10 +22,12 @@ services:
       timeout: 5s
       retries: 5
 
-  # --- Backend (API Node.js) ---
+  # --- Backend (API Node.js / Express) ---
   backend:
     build: ./backend
     restart: unless-stopped
+    ports:
+      - "3001:3001"
     depends_on:
       db:
         condition: service_healthy
@@ -52,34 +39,18 @@ services:
       - uploads:/app/uploads
     networks:
       - immo_network
-    labels:
-      - "traefik.enable=true"
-      # Redirige /api et /uploads vers le backend
-      - "traefik.http.routers.backend.rule=PathPrefix(`/api`) || PathPrefix(`/uploads`)"
-      - "traefik.http.routers.backend.entrypoints=web"
-      - "traefik.http.routers.backend.priority=100"
-      - "traefik.http.routers.backend.middlewares=security-headers@file,rate-limit@file"
-      - "traefik.http.services.backend.loadbalancer.server.port=3001"
 
   # --- Frontend (React SPA) ---
   frontend:
     build:
       context: ./front-new
-      args:
-        VITE_API_URL: /api
     restart: unless-stopped
+    ports:
+      - "3000:3000"
     depends_on:
       - backend
     networks:
       - immo_network
-    labels:
-      - "traefik.enable=true"
-      # Redirige tout le reste vers le frontend SPA
-      - "traefik.http.routers.frontend.rule=PathPrefix(`/`)"
-      - "traefik.http.routers.frontend.entrypoints=web"
-      - "traefik.http.routers.frontend.priority=10"
-      - "traefik.http.routers.frontend.middlewares=gzip-compress@file,security-headers@file"
-      - "traefik.http.services.frontend.loadbalancer.server.port=3000"
 
 networks:
   immo_network:
@@ -88,4 +59,3 @@ networks:
 volumes:
   pg_data:
   uploads:
-  traefik_logs:

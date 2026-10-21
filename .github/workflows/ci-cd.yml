@@ -105,8 +105,6 @@ jobs:
         run: npm run lint
 
       - name: Build frontend
-        env:
-          VITE_API_URL: /api
         run: npm run build
 
   # ─────────────────────────────────────────────
@@ -140,8 +138,6 @@ jobs:
           context: ./front-new
           push: false
           tags: immotulear-frontend:test
-          build-args: |
-            VITE_API_URL=/api
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
