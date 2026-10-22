@@ -1,5 +1,5 @@
 import { lazy, Suspense } from 'react'
-import { Routes, Route } from 'react-router-dom'
+import { Routes, Route, Navigate } from 'react-router-dom'
 import Home from './pages/Home'
 
 // Les autres pages sont chargées à la demande pour alléger le premier chargement
@@ -45,6 +45,10 @@ function App() {
 
         {/* Admin Routes */}
         <Route path="/admin/login" element={<Login />} />
+        <Route path="/login" element={<Navigate to="/admin/login" replace />} />
+        <Route path="/Admin/login" element={<Navigate to="/admin/login" replace />} />
+        <Route path="/Admin/*" element={<Navigate to="/admin" replace />} />
+        <Route path="/Admin" element={<Navigate to="/admin" replace />} />
         <Route path="/admin" element={<AdminLayout />}>
           <Route index element={<Dashboard />} />
           <Route path="dashboard" element={<Dashboard />} />
