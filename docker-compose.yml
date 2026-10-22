@@ -1,5 +1,5 @@
 # =============================================================
-#  Docker Compose — ImmoTuléar (Production sur port 5000)
+#  Docker Compose — ImmoTuléar (Production sur port 5005)
 # =============================================================
 
 services:
@@ -40,7 +40,7 @@ services:
     networks:
       - immo_network
 
-  # --- Frontend (React SPA + Nginx sur port 5000) ---
+  # --- Frontend (React SPA + Nginx sur port 5005) ---
   frontend:
     build:
       context: ./front-new
@@ -48,7 +48,7 @@ services:
         VITE_API_URL: /api
     restart: always
     ports:
-      - "5000:5000"
+      - "5005:5005"
     depends_on:
       backend:
         condition: service_healthy
