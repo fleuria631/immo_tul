@@ -1,5 +1,5 @@
 # =============================================================
-#  Dockerfile — Frontend ImmoTuléar (React / Vite + serve)
+#  Dockerfile — Frontend ImmoTuléar (React / Vite + Nginx)
 # =============================================================
 
 # --- Étape 1 : Installation des dépendances ---
@@ -19,29 +19,20 @@ COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 
 # Les variables VITE_* sont intégrées au build
-ARG VITE_API_URL
+ARG VITE_API_URL=/api
 ENV VITE_API_URL=${VITE_API_URL}
 
 RUN npm run build
 
-# --- Étape 3 : Servir avec "serve" (léger) ---
-FROM node:22-alpine
+# --- Étape 3 : Serveur Nginx de production ---
+FROM nginx:alpine
 
-WORKDIR /app
+COPY nginx.conf /etc/nginx/conf.d/default.conf
+COPY --from=build /app/dist /usr/share/nginx/html
 
-RUN npm install -g serve
-
-# Copier le build
-COPY --from=build /app/dist ./dist
-
-# Sécurité : utilisateur non-root
-RUN addgroup -S immo && adduser -S immo -G immo && chown -R immo:immo /app
-USER immo
-
-EXPOSE 5999
+EXPOSE 5000
 
 HEALTHCHECK --interval=30s --timeout=5s --start-period=5s --retries=3 \
-  CMD wget -qO- http://localhost:5999 || exit 1
+  CMD wget -qO- http://localhost:5000/ || exit 1
 
-# serve -s = mode SPA (redirige tout vers index.html)
-CMD ["serve", "-s", "dist", "-l", "5999"]
+CMD ["nginx", "-g", "daemon off;"]
