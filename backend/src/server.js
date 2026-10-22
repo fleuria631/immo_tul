@@ -19,8 +19,18 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const app = express();
 const PORT = process.env.PORT || 3001;
 
+// Faire confiance au reverse proxy (Nginx) pour req.ip et req.protocol
+app.set('trust proxy', 1);
+
 // --- Middleware globaux ---
-app.use(helmet({ crossOriginResourcePolicy: false }));
+// Désactivation de CSP et HSTS pour éviter que le navigateur ne force HTTPS en mode HTTP
+app.use(
+  helmet({
+    crossOriginResourcePolicy: false,
+    contentSecurityPolicy: false,
+    hsts: false,
+  })
+);
 const rawFrontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
 const allowedOrigins = rawFrontendUrl.split(',').map((u) => u.trim());
 app.use(

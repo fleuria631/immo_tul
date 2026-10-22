@@ -6,6 +6,10 @@ const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
 });
 
+pool.on('error', (err) => {
+  console.error('Erreur inattendue sur le client PostgreSQL inactif:', err.message);
+});
+
 // Test connection on startup
 pool.query('SELECT NOW()')
   .then(() => console.log('PostgreSQL connecté'))
