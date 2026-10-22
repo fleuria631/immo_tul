@@ -1,9 +1,11 @@
 export const API_URL = import.meta.env.VITE_API_URL
-  || (typeof window !== 'undefined'
-      ? `${window.location.protocol}//${window.location.hostname}:3001/api`
-      : 'http://localhost:3001/api');
+  || (import.meta.env.PROD
+      ? '/api'
+      : (typeof window !== 'undefined'
+          ? `${window.location.protocol}//${window.location.hostname}:3001/api`
+          : 'http://localhost:3001/api'));
 if (import.meta.env.PROD && !import.meta.env.VITE_API_URL) {
-  console.warn('VITE_API_URL non défini : le site appelle http://localhost:3001/api (voir .env.production.example)');
+  console.info('VITE_API_URL non défini : utilisation de la route relative /api par défaut.');
 }
 // Origine du serveur (sans /api) : sert les images uploadées
 const SERVER_URL = API_URL.replace(/\/api\/?$/, '');
