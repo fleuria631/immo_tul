@@ -7,7 +7,7 @@ services:
   # --- Base de données PostgreSQL ---
   db:
     image: postgres:16-alpine
-    restart: unless-stopped
+    restart: always
     environment:
       POSTGRES_DB: immo_tul
       POSTGRES_USER: immo_user
@@ -25,7 +25,7 @@ services:
   # --- Backend (API Node.js / Express) ---
   backend:
     build: ./backend
-    restart: unless-stopped
+    restart: always
     ports:
       - "3001:3001"
     depends_on:
@@ -44,11 +44,12 @@ services:
   frontend:
     build:
       context: ./front-new
-    restart: unless-stopped
+    restart: always
     ports:
       - "5999:5999"
     depends_on:
-      - backend
+      backend:
+        condition: service_healthy
     networks:
       - immo_network
 

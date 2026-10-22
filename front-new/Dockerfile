@@ -40,5 +40,8 @@ USER immo
 
 EXPOSE 5999
 
+HEALTHCHECK --interval=30s --timeout=5s --start-period=5s --retries=3 \
+  CMD wget -qO- http://localhost:5999 || exit 1
+
 # serve -s = mode SPA (redirige tout vers index.html)
 CMD ["serve", "-s", "dist", "-l", "5999"]

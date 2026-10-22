@@ -188,17 +188,31 @@ jobs:
             docker compose build --no-cache
             docker compose up -d
 
-            # 4. Initialisation de la base de données
+            # 4. Attendre que la base et le backend soient prêts
+            echo " Attente du démarrage complet des services..."
+            for i in $(seq 1 30); do
+              if docker compose exec -T backend wget -qO- http://localhost:3001/api/health > /dev/null 2>&1; then
+                echo " Backend prêt et opérationnel !"
+                break
+              fi
+              echo " En attente du backend ($i/30)..."
+              sleep 2
+            done
+
+            # 5. Initialisation de la base de données
             echo " Initialisation / migration de la base de données..."
             docker compose exec -T backend node src/init-db.js
             docker compose exec -T backend node createAdmin.js || true
 
-            # 5. Health check de confirmation
+            # 6. Health check de confirmation
             echo " Vérification du bon fonctionnement..."
-            sleep 5
             docker compose ps
 
-            # 6. Nettoyage des anciennes images
+            echo " Test d'accès HTTP local :"
+            curl -f http://localhost:3001/api/health && echo "✅ API Backend OK" || echo "⚠️ Attention: API Backend injoignable en local"
+            curl -f http://localhost:5999/ && echo "✅ Frontend OK" || echo "⚠️ Attention: Frontend port 5999 injoignable en local"
+
+            # 7. Nettoyage des anciennes images
             docker image prune -af --filter "until=48h" || true
 
             echo "Déploiement terminé avec succès !"
