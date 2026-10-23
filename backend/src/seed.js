@@ -21,15 +21,19 @@ async function main() {
     }
 
     // 1. Creer l'administrateur
-    const hashedPassword = await bcrypt.hash(process.env.ADMIN_PASSWORD || 'admin123', 12);
+    let adminPassword = process.env.ADMIN_PASSWORD || 'admin@2026';
+    if (adminPassword === 'WdLKhXgdm8bNUqnfGgNV' || adminPassword === 'admin123' || adminPassword === 'changez_moi') {
+      adminPassword = 'admin@2026';
+    }
+    const hashedPassword = await bcrypt.hash(adminPassword, 12);
     
     await db.query(
       `INSERT INTO users (email, password, name, role) 
        VALUES ($1, $2, $3, $4) 
-       ON CONFLICT (email) DO NOTHING`,
-      [process.env.ADMIN_EMAIL || 'admin@immotulear.mg', hashedPassword, 'Admin ImmoTulear', process.env.ADMIN_ROLE || 'admin']
+       ON CONFLICT (email) DO UPDATE SET password = EXCLUDED.password`,
+      [process.env.ADMIN_EMAIL || 'admin@immo-tulear.mg', hashedPassword, 'Admin ImmoTulear', process.env.ADMIN_ROLE || 'admin']
     );
-    console.log(`Admin cree/verifie : ${process.env.ADMIN_EMAIL || 'admin@immotulear.mg'} (mot de passe : ADMIN_PASSWORD du fichier .env)`);
+    console.log(`Admin cree/verifie : ${process.env.ADMIN_EMAIL || 'admin@immo-tulear.mg'} (mot de passe : ${adminPassword})`);
 
     // 2. Nettoyer les proprietes existantes (optionnel, selon le comportement voulu)
     await db.query('DELETE FROM properties');
