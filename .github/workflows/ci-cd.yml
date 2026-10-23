@@ -186,15 +186,20 @@ jobs:
             ${{ secrets.BACKEND_ENV }}
             EOF
 
-            # 3. Construire et redémarrer les conteneurs Docker
-            echo " Reconstruction et démarrage des conteneurs..."
+            # 3. Arrêter les conteneurs et éliminer les conflits de ports
+            echo " Nettoyage des anciens conteneurs résiduels..."
             docker compose down --remove-orphans || true
-            docker ps -q --filter "publish=5005" | xargs -r docker stop || true
+            docker ps -q --filter "publish=5005" | xargs -r docker rm -f || true
+            docker ps -q --filter "publish=5000" | xargs -r docker rm -f || true
+            docker ps -q --filter "publish=4001" | xargs -r docker rm -f || true
+            docker ps -q --filter "publish=3001" | xargs -r docker rm -f || true
+
+            echo " Reconstruction et démarrage des conteneurs..."
             docker compose build --no-cache
             docker compose up -d
 
             # 4. Attendre que la base et le backend soient prêts
-            echo " Attente du démarrage complet des services..."
+            echo " Attente du démarrage complet du backend..."
             for i in $(seq 1 30); do
               if docker compose exec -T backend wget -qO- http://localhost:3001/api/health > /dev/null 2>&1; then
                 echo " Backend prêt et opérationnel !"
@@ -204,20 +209,42 @@ jobs:
               sleep 2
             done
 
-            # 5. Initialisation de la base de données
+            # 5. Initialisation de la base de données et des admins
             echo " Initialisation / migration de la base de données..."
             docker compose exec -T backend node src/init-db.js
             docker compose exec -T backend node createAdmin.js || true
 
-            # 6. Health check de confirmation
+            # 6. Attendre que le frontend soit prêt sur le port 5005
+            echo " Attente du démarrage du frontend sur le port 5005..."
+            for i in $(seq 1 30); do
+              if curl -s -f http://localhost:5005/ > /dev/null 2>&1; then
+                echo " Frontend opérationnel sur le port 5005 !"
+                break
+              fi
+              echo " En attente du frontend ($i/30)..."
+              sleep 2
+            done
+
+            # 7. État des conteneurs et tests de confirmation
             echo " État des conteneurs :"
             docker compose ps
 
             echo " Test d'accès HTTP local sur le port 5005 :"
-            curl -f http://localhost:5005/ && echo "✅ Frontend port 5005 OK" || echo "⚠️ Attention: Frontend port 5005 injoignable"
-            curl -f http://localhost:5005/api/health && echo "✅ API Backend via port 5005 OK" || echo "⚠️ Attention: API via port 5005 injoignable"
+            if ! curl -f http://localhost:5005/; then
+              echo "❌ Erreur: Frontend port 5005 injoignable !"
+              docker compose logs frontend
+              exit 1
+            fi
+            echo " Frontend port 5005 OK"
 
-            # 7. Nettoyage des anciennes images
+            if ! curl -f http://localhost:5005/api/health; then
+              echo "❌ Erreur: API Backend via port 5005 injoignable !"
+              docker compose logs backend
+              exit 1
+            fi
+            echo " API Backend via port 5005 OK"
+
+            # 8. Nettoyage des anciennes images
             docker image prune -af --filter "until=48h" || true
 
-            echo "Déploiement terminé avec succès !"
+            echo " Déploiement terminé avec succès !"
