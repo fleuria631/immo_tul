@@ -9,7 +9,7 @@ const router = express.Router();
 // Limite les tentatives de connexion (protection contre le brute force)
 const loginLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 10, // 10 tentatives par fenêtre par IP
+  max: 50, // 50 tentatives par fenêtre par IP
   skipSuccessfulRequests: true,
   message: { error: 'Trop de tentatives de connexion, veuillez réessayer dans 15 minutes.' }
 });

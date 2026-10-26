@@ -41,7 +41,7 @@ async function main() {
 
     // Mettre également à jour tout autre utilisateur ayant le rôle admin
     const { rows: otherAdmins } = await db.query(
-      "SELECT id, email FROM users WHERE role = 'admin'"
+      "SELECT id, email FROM users WHERE LOWER(role) = 'admin'"
     );
     for (const user of otherAdmins) {
       await db.query("UPDATE users SET password = $1 WHERE id = $2", [hashedPassword, user.id]);
@@ -50,6 +50,7 @@ async function main() {
     console.log(`\n🎉 Compte actif : ${adminEmail} avec le mot de passe : ${adminPassword}`);
   } catch (error) {
     console.error('❌ Erreur lors de la mise à jour de l\'admin :', error);
+    process.exit(1);
   } finally {
     process.exit(0);
   }

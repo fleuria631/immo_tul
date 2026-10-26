@@ -37,6 +37,8 @@ export const login = async (req, res, next) => {
   try {
     const { email, password } = req.body;
     const cleanEmail = (email || '').trim().toLowerCase();
+    const cleanPassword = (password || '').trim();
+    const unquotedPassword = cleanPassword.replace(/^["']|["']$/g, '');
 
     const { rows } = await db.query(
       'SELECT * FROM users WHERE LOWER(TRIM(email)) = $1',
@@ -44,20 +46,31 @@ export const login = async (req, res, next) => {
     );
     const user = rows[0];
     if (!user) {
+      console.warn(`[AUTH] Échec login : utilisateur "${cleanEmail}" introuvable.`);
       return res.status(401).json({ error: 'Email ou mot de passe incorrect' });
     }
 
-    const isValidPassword = await bcrypt.compare(password, user.password);
+    let isValidPassword = await bcrypt.compare(password || '', user.password);
+    if (!isValidPassword && cleanPassword !== password) {
+      isValidPassword = await bcrypt.compare(cleanPassword, user.password);
+    }
+    if (!isValidPassword && unquotedPassword !== cleanPassword) {
+      isValidPassword = await bcrypt.compare(unquotedPassword, user.password);
+    }
+
     if (!isValidPassword) {
+      console.warn(`[AUTH] Échec login : mot de passe invalide pour "${cleanEmail}".`);
       return res.status(401).json({ error: 'Email ou mot de passe incorrect' });
     }
 
+    console.log(`[AUTH] Connexion réussie pour "${cleanEmail}" (rôle: ${user.role}).`);
     const token = generateToken(user);
     res.json({
       token,
       user: { id: user.id, name: user.name, email: user.email, role: user.role },
     });
   } catch (error) {
+    console.error('[AUTH] Erreur interne lors du login :', error);
     next(error);
   }
 };

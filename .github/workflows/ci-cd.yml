@@ -309,6 +309,20 @@ jobs:
             echo "[ADMIN] Synchronisation forcée du compte admin (admin@immo-tulear.mg)..."
             docker compose -f docker-compose.prod.yml exec -T backend node createAdmin.js
 
+            echo "[ADMIN] Vérification du mot de passe admin@2026 sur les comptes enregistrés :"
+            docker compose -f docker-compose.prod.yml exec -T backend node -e "
+              import('./src/db.js').then(async ({ default: db }) => {
+                import('bcryptjs').then(async ({ default: bcrypt }) => {
+                  const { rows } = await db.query('SELECT id, email, role, password FROM users');
+                  for (const u of rows) {
+                    const match = await bcrypt.compare('admin@2026', u.password);
+                    console.log('   -> ' + u.email + ' (' + u.role + ') : mot de passe admin@2026 valide = ' + match);
+                  }
+                  process.exit(0);
+                });
+              });
+            "
+
             # ------------------------------------------------------------------
             # 7. TESTS DE SANTÉ : Vérification FRONTEND (Nginx sur port 5005)
             # ------------------------------------------------------------------
