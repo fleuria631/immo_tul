@@ -1,12 +1,3 @@
-# ==============================================================================
-#                  CHAÎNE DEVOPS COMPLÈTE — IMMOTULÉAR (OVH CLOUD)
-# ==============================================================================
-# Ce fichier unique orchestre l'ensemble de la chaîne DevOps :
-#   - PARTIE 1 : BACKEND (Tests CI, Schéma BD PostgreSQL, Packaging Docker GHCR)
-#   - PARTIE 2 : FRONTEND (Analyse statique, Build Vite, Packaging Docker GHCR)
-#   - PARTIE 3 : DÉPLOIEMENT CONTINU (CD) sur le serveur OVH sans code source
-# ==============================================================================
-
 name: DevOps CI/CD Pipeline
 
 on:
@@ -24,22 +15,6 @@ env:
   REGISTRY: ghcr.io
 
 jobs:
-
-  # ############################################################################
-  # ############################################################################
-  # ##                                                                        ##
-  # ##                   ██████╗   █████╗   ██████╗ ██╗  ██╗                  ##
-  # ##                   ██╔══██╗ ██╔══██╗ ██╔════╝ ██║ ██╔╝                  ##
-  # ##                   ██████╔╝ ███████║ ██║      █████╔╝                   ##
-  # ##                   ██╔══██╗ ██╔══██║ ██║      ██╔═██╗                   ##
-  # ##                   ██████╔╝ ██║  ██║ ╚██████╗ ██║  ██╗                  ##
-  # ##                   ╚═════╝  ╚═╝  ╚═╝  ╚═════╝ ╚═╝  ╚═╝                  ##
-  # ##                                                                        ##
-  # ##                      >>>  PARTIE 1 : BACKEND  <<<                      ##
-  # ##                                                                        ##
-  # ############################################################################
-  # ############################################################################
-
   # ────────────────────────────────────────────────────────────────────────────
   #  BACKEND - ÉTAPE 1 : Intégration Continue (CI Backend)
   #  Tests, validation du schéma PostgreSQL et vérification du point de santé
@@ -146,27 +121,8 @@ jobs:
           labels: ${{ steps.meta-backend.outputs.labels }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
-
-
-  # ############################################################################
-  # ############################################################################
-  # ##                                                                        ##
-  # ##                 ███████╗██████╗  ██████╗ ███╗   ██╗████████╗           ##
-  # ##                 ██╔════╝██╔══██╗██╔═══██╗████╗  ██║╚══██╔══╝           ##
-  # ##                 █████╗  ██████╔╝██║   ██║██╔██╗ ██║   ██║              ##
-  # ##                 ██╔══╝  ██╔══██╗██║   ██║██║╚██╗██║   ██║              ##
-  # ##                 ██║     ██║  ██║╚██████╔╝██║ ╚████║   ██║              ##
-  # ##                 ╚═╝     ╚═╝  ╚═╝ ╚═════╝ ╚═╝  ╚═══╝   ╚═╝              ##
-  # ##                                                                        ##
-  # ##                     >>>  PARTIE 2 : FRONTEND  <<<                      ##
-  # ##                                                                        ##
-  # ############################################################################
-  # ############################################################################
-
   # ────────────────────────────────────────────────────────────────────────────
   #  FRONTEND - ÉTAPE 1 : Intégration Continue (CI Frontend)
-  #  Linter statique et compilation des assets Vite
-  # ────────────────────────────────────────────────────────────────────────────
   frontend-ci:
     name: "Frontend CI : Lint & Build Vite"
     runs-on: ubuntu-latest
@@ -241,23 +197,6 @@ jobs:
           labels: ${{ steps.meta-frontend.outputs.labels }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
-
-
-  # ############################################################################
-  # ############################################################################
-  # ##                                                                        ##
-  # ##             ██████╗ ███████╗██████╗ ██╗      ██████╗ ██╗   ██╗         ##
-  # ##             ██╔══██╗██╔════╝██╔══██╗██║     ██╔═══██╗╚██╗ ██╔╝         ##
-  # ##             ██║  ██║█████╗  ██████╔╝██║     ██║   ██║ ╚████╔╝          ##
-  # ##             ██║  ██║██╔══╝  ██╔═══╝ ██║     ██║   ██║  ╚██╔╝           ##
-  # ##             ██████╔╝███████╗██║     ███████╗╚██████╔╝   ██║            ##
-  # ##             ╚═════╝ ╚══════╝╚═╝     ╚══════╝ ╚═════╝    ╚═╝            ##
-  # ##                                                                        ##
-  # ##                >>>  PARTIE 3 : DÉPLOIEMENT OVH (CD)  <<<               ##
-  # ##                                                                        ##
-  # ############################################################################
-  # ############################################################################
-
   # ────────────────────────────────────────────────────────────────────────────
   #  DÉPLOIEMENT CONTINU (CD) - SERVEUR OVH CLOUD
   #  Déploiement basé exclusivement sur les images GHCR (Zero code source)
@@ -320,27 +259,27 @@ jobs:
             # 1. NETTOYAGE : Éliminer tout code source résiduel sur le serveur
             # ------------------------------------------------------------------
             if [ -d "$TARGET_DIR/.git" ]; then
-              echo "🧹 Nettoyage du code source résiduel du serveur..."
+              echo "Nettoyage du code source résiduel du serveur..."
               rm -rf backend front-new .git
             fi
 
             # ------------------------------------------------------------------
             # 2. CONFIGURATION : Injection des variables d'environnement
             # ------------------------------------------------------------------
-            echo "🔐 Configuration du fichier .env de production..."
+            echo "Configuration du fichier .env de production..."
             printf '%s\n' "$BACKEND_ENV" > .env
             chmod 600 .env
 
             # ------------------------------------------------------------------
             # 3. REGISTRE GHCR : Authentification
             # ------------------------------------------------------------------
-            echo "🔑 Authentification auprès de ghcr.io..."
+            echo "Authentification auprès de ghcr.io..."
             echo "$REGISTRY_PASSWORD" | docker login ghcr.io -u "$ACTOR" --password-stdin || true
 
             # ------------------------------------------------------------------
             # 4. PULL : Téléchargement des images Backend & Frontend depuis GHCR
             # ------------------------------------------------------------------
-            echo "📥 Téléchargement des images depuis ghcr.io..."
+            echo "Téléchargement des images depuis ghcr.io..."
             echo "   - Image Backend  : ghcr.io/$REPO/backend:latest"
             echo "   - Image Frontend : ghcr.io/$REPO/frontend:latest"
             docker compose -f docker-compose.prod.yml pull
@@ -348,16 +287,16 @@ jobs:
             # ------------------------------------------------------------------
             # 5. DÉMARRAGE : Lancement propre des conteneurs
             # ------------------------------------------------------------------
-            echo "🔄 Démarrage des conteneurs de production..."
+            echo " Démarrage des conteneurs de production..."
             docker compose -f docker-compose.prod.yml up -d --remove-orphans
 
             # ------------------------------------------------------------------
             # 6. TESTS DE SANTÉ : Vérification BACKEND (API sur port 3001)
             # ------------------------------------------------------------------
-            echo "⏳ [BACKEND] Vérification de la disponibilité de l'API..."
+            echo "[BACKEND] Vérification de la disponibilité de l'API..."
             for i in $(seq 1 30); do
               if docker compose -f docker-compose.prod.yml exec -T backend wget -qO- http://localhost:3001/api/health > /dev/null 2>&1; then
-                echo "✅ [BACKEND] API opérationnelle et connectée à la base de données !"
+                echo "[BACKEND] API opérationnelle et connectée à la base de données !"
                 break
               fi
               echo "   Attente du Backend ($i/30)..."
@@ -367,10 +306,10 @@ jobs:
             # ------------------------------------------------------------------
             # 7. TESTS DE SANTÉ : Vérification FRONTEND (Nginx sur port 5005)
             # ------------------------------------------------------------------
-            echo "⏳ [FRONTEND] Vérification du serveur Nginx sur le port 5005..."
+            echo "[FRONTEND] Vérification du serveur Nginx sur le port 5005..."
             for i in $(seq 1 30); do
               if curl -s -f http://localhost:5005/ > /dev/null 2>&1; then
-                echo "✅ [FRONTEND] Interface web opérationnelle sur http://localhost:5005 !"
+                echo "[FRONTEND] Interface web opérationnelle sur http://localhost:5005 !"
                 break
               fi
               echo "   Attente du Frontend ($i/30)..."
@@ -380,13 +319,13 @@ jobs:
             # ------------------------------------------------------------------
             # 8. RAPPORT D'ÉTAT : Conteneurs actifs
             # ------------------------------------------------------------------
-            echo "📋 État des conteneurs en production :"
+            echo " État des conteneurs en production :"
             docker compose -f docker-compose.prod.yml ps
 
             # ------------------------------------------------------------------
             # 9. NETTOYAGE DOCKER : Élimination des images orphelines
             # ------------------------------------------------------------------
-            echo "🧹 Nettoyage des anciennes images Docker inutilisées..."
+            echo " Nettoyage des anciennes images Docker inutilisées..."
             docker image prune -af --filter "until=24h" || true
 
-            echo "🎉 === DÉPLOIEMENT RÉUSSI SUR OVH CLOUD === "
+            echo " === DÉPLOIEMENT RÉUSSI SUR OVH CLOUD === "
