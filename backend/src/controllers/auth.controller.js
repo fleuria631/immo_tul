@@ -36,8 +36,12 @@ export const register = async (req, res, next) => {
 export const login = async (req, res, next) => {
   try {
     const { email, password } = req.body;
+    const cleanEmail = (email || '').trim().toLowerCase();
 
-    const { rows } = await db.query('SELECT * FROM users WHERE email = $1', [email]);
+    const { rows } = await db.query(
+      'SELECT * FROM users WHERE LOWER(TRIM(email)) = $1',
+      [cleanEmail]
+    );
     const user = rows[0];
     if (!user) {
       return res.status(401).json({ error: 'Email ou mot de passe incorrect' });

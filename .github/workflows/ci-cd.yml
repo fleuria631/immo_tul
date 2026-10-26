@@ -304,6 +304,12 @@ jobs:
             done
 
             # ------------------------------------------------------------------
+            # 6b. SYNCHRONISATION ADMIN : Forcer les identifiants admin@2026
+            # ------------------------------------------------------------------
+            echo "[ADMIN] Synchronisation forcée du compte admin (admin@immo-tulear.mg)..."
+            docker compose -f docker-compose.prod.yml exec -T backend node createAdmin.js
+
+            # ------------------------------------------------------------------
             # 7. TESTS DE SANTÉ : Vérification FRONTEND (Nginx sur port 5005)
             # ------------------------------------------------------------------
             echo "[FRONTEND] Vérification du serveur Nginx sur le port 5005..."
