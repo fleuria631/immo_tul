@@ -1,0 +1,19 @@
+# =============================================================
+#  .dockerignore — Root
+# =============================================================
+
+.git/
+.github/
+node_modules/
+*/node_modules/
+dist/
+*/dist/
+.env*
+!.env.example
+*.log
+.DS_Store
+.vscode/
+.idea/
+uploads/*
+!uploads/.gitkeep
+pg_data/

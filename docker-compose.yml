@@ -1,69 +1,69 @@
 # =============================================================
-#  Docker Compose — ImmoTuléar (Production sur port 5005)
+#  Docker Compose — Local Development
+#  Usage: docker compose up --build
 # =============================================================
+
+name: immo-tulear-dev
 
 services:
 
   # --- Base de données PostgreSQL ---
   db:
     image: postgres:16-alpine
-    restart: always
+    container_name: immo_dev_db
+    restart: unless-stopped
     environment:
-      POSTGRES_DB: immo_tul
-      POSTGRES_USER: immo_user
-      POSTGRES_PASSWORD: immo_tul
+      POSTGRES_DB: ${POSTGRES_DB:-immo_tul}
+      POSTGRES_USER: ${POSTGRES_USER:-immo_user}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-immo_tul}
+    ports:
+      - "5432:5432"
     volumes:
-      - pg_data:/var/lib/postgresql/data
+      - dev_pg_data:/var/lib/postgresql/data
     networks:
       - immo_network
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U immo_user -d immo_tul"]
-      interval: 10s
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-immo_user} -d ${POSTGRES_DB:-immo_tul}"]
+      interval: 5s
       timeout: 5s
       retries: 5
 
-  # --- Backend (API Node.js / Express) ---
+  # --- Backend API Node.js / Express ---
   backend:
-    build: ./backend
-    restart: always
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: immo_dev_backend
+    restart: unless-stopped
     ports:
       - "3001:3001"
     depends_on:
       db:
         condition: service_healthy
-    healthcheck:
-      test: ["CMD-SHELL", "wget -qO- http://localhost:3001/api/health > /dev/null 2>&1 || exit 1"]
-      interval: 5s
-      timeout: 3s
-      retries: 10
-      start_period: 5s
     env_file:
       - ./backend/.env
     environment:
-      DATABASE_URL: postgresql://immo_user:immo_tul@db:5432/immo_tul
+      NODE_ENV: development
+      DATABASE_URL: postgresql://${POSTGRES_USER:-immo_user}:${POSTGRES_PASSWORD:-immo_tul}@db:5432/${POSTGRES_DB:-immo_tul}
     volumes:
-      - uploads:/app/uploads
+      - dev_uploads:/app/uploads
     networks:
       - immo_network
 
-  # --- Frontend (React SPA + Nginx sur port 5005) ---
+  # --- Frontend React SPA + Nginx ---
   frontend:
     build:
       context: ./front-new
+      dockerfile: Dockerfile
       args:
         VITE_API_URL: /api
-    restart: always
+    container_name: immo_dev_frontend
+    restart: unless-stopped
     ports:
       - "5005:5005"
     depends_on:
       backend:
         condition: service_healthy
-    healthcheck:
-      test: ["CMD-SHELL", "wget -qO- http://localhost:5005/ > /dev/null 2>&1 || exit 1"]
-      interval: 5s
-      timeout: 3s
-      retries: 10
-      start_period: 5s
     networks:
       - immo_network
 
@@ -72,5 +72,5 @@ networks:
     driver: bridge
 
 volumes:
-  pg_data:
-  uploads:
+  dev_pg_data:
+  dev_uploads:

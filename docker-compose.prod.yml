@@ -1,0 +1,70 @@
+# =============================================================
+#  Docker Compose — Production (OVH Cloud)
+#  Images précompilées depuis GitHub Container Registry (GHCR)
+#  Usage: docker compose -f docker-compose.prod.yml up -d
+# =============================================================
+
+name: immo-tulear-prod
+
+services:
+
+  # --- Base de données PostgreSQL ---
+  db:
+    image: postgres:16-alpine
+    container_name: immo_prod_db
+    restart: always
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-immo_tul}
+      POSTGRES_USER: ${POSTGRES_USER:-immo_user}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-immo_tul}
+    volumes:
+      - pg_data:/var/lib/postgresql/data
+    networks:
+      - immo_network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-immo_user} -d ${POSTGRES_DB:-immo_tul}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # --- Backend API Node.js ---
+  backend:
+    image: ${BACKEND_IMAGE:-ghcr.io/fleuria631/immo_tul/backend:latest}
+    container_name: immo_prod_backend
+    restart: always
+    ports:
+      - "3001:3001"
+    depends_on:
+      db:
+        condition: service_healthy
+    env_file:
+      - path: .env
+        required: false
+    environment:
+      NODE_ENV: production
+      DATABASE_URL: postgresql://${POSTGRES_USER:-immo_user}:${POSTGRES_PASSWORD:-immo_tul}@db:5432/${POSTGRES_DB:-immo_tul}
+    volumes:
+      - uploads:/app/uploads
+    networks:
+      - immo_network
+
+  # --- Frontend React SPA + Nginx ---
+  frontend:
+    image: ${FRONTEND_IMAGE:-ghcr.io/fleuria631/immo_tul/frontend:latest}
+    container_name: immo_prod_frontend
+    restart: always
+    ports:
+      - "5005:5005"
+    depends_on:
+      backend:
+        condition: service_healthy
+    networks:
+      - immo_network
+
+networks:
+  immo_network:
+    driver: bridge
+
+volumes:
+  pg_data:
+  uploads:

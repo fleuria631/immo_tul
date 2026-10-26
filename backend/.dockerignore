@@ -1,4 +1,9 @@
+# =============================================================
+#  .dockerignore — Backend
+# =============================================================
+
 node_modules
+.npm-cache
 uploads/*
 !uploads/.gitkeep
 .env
@@ -8,3 +13,5 @@ uploads/*
 .git
 .vscode
 .idea
+Dockerfile
+.dockerignore

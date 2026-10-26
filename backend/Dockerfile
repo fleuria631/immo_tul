@@ -1,41 +1,46 @@
 # =============================================================
 #  Dockerfile — Backend ImmoTuléar (Node.js / Express)
+#  Multi-stage build optimisé et sécurisé
 # =============================================================
 
-# --- Étape 1 : Installation des dépendances ---
-FROM node:22-alpine AS deps
+# --- Étape 1 : Dépendances de production ---
+FROM node:22-alpine AS dependencies
 
 WORKDIR /app
 
 COPY package.json package-lock.json ./
-RUN npm ci --omit=dev
+RUN npm ci --omit=dev && npm cache clean --force
 
-# --- Étape 2 : Image de production ---
-FROM node:22-alpine
+# --- Étape 2 : Image finale de production ---
+FROM node:22-alpine AS runner
 
 WORKDIR /app
+
+ENV NODE_ENV=production
+ENV PORT=3001
 
 # Sécurité : utilisateur non-root
 RUN addgroup -S immo && adduser -S immo -G immo
 
-# Copier les dépendances depuis l'étape précédente
-COPY --from=deps /app/node_modules ./node_modules
+# Dépendances de production
+COPY --from=dependencies /app/node_modules ./node_modules
 
-# Copier le code source
+# Code applicatif
 COPY package.json ./
 COPY src/ ./src/
 COPY scripts/ ./scripts/
 COPY createAdmin.js ./
+COPY docker-entrypoint.sh ./
 
-# Créer le dossier uploads avec les bonnes permissions
-RUN mkdir -p uploads && chown -R immo:immo /app
+# Permissions du dossier uploads et du script d'entrée
+RUN mkdir -p uploads && chown -R immo:immo /app && chmod +x /app/docker-entrypoint.sh
 
 USER immo
 
 EXPOSE 3001
 
-# Healthcheck
-HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
-  CMD wget -qO- http://localhost:3001/api/health || exit 1
+HEALTHCHECK --interval=20s --timeout=5s --start-period=15s --retries=3 \
+  CMD wget -qO- http://localhost:3001/api/health > /dev/null 2>&1 || exit 1
 
+ENTRYPOINT ["./docker-entrypoint.sh"]
 CMD ["node", "src/server.js"]
