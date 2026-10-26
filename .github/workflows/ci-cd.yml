@@ -1,9 +1,11 @@
-# =============================================================
-#  CI/CD — ImmoTuléar (Chaîne DevOps Complète & Conforme)
-#  1. CI : Validation de code, tests & builds
-#  2. Package : Publication des images Docker sur GitHub Container Registry (ghcr.io)
-#  3. CD : Déploiement sans code source sur serveur OVH Cloud (Images Only)
-# =============================================================
+# ==============================================================================
+#                  CHAÎNE DEVOPS COMPLÈTE — IMMOTULÉAR (OVH CLOUD)
+# ==============================================================================
+# Ce fichier unique orchestre l'ensemble de la chaîne DevOps :
+#   - PARTIE 1 : BACKEND (Tests CI, Schéma BD PostgreSQL, Packaging Docker GHCR)
+#   - PARTIE 2 : FRONTEND (Analyse statique, Build Vite, Packaging Docker GHCR)
+#   - PARTIE 3 : DÉPLOIEMENT CONTINU (CD) sur le serveur OVH sans code source
+# ==============================================================================
 
 name: DevOps CI/CD Pipeline
 
@@ -22,11 +24,28 @@ env:
   REGISTRY: ghcr.io
 
 jobs:
-  # ─────────────────────────────────────────────────────────────
-  #  ÉTAPE 1 : Intégration Continue (CI) - Backend
-  # ─────────────────────────────────────────────────────────────
+
+  # ############################################################################
+  # ############################################################################
+  # ##                                                                        ##
+  # ##                   ██████╗   █████╗   ██████╗ ██╗  ██╗                  ##
+  # ##                   ██╔══██╗ ██╔══██╗ ██╔════╝ ██║ ██╔╝                  ##
+  # ##                   ██████╔╝ ███████║ ██║      █████╔╝                   ##
+  # ##                   ██╔══██╗ ██╔══██║ ██║      ██╔═██╗                   ##
+  # ##                   ██████╔╝ ██║  ██║ ╚██████╗ ██║  ██╗                  ##
+  # ##                   ╚═════╝  ╚═╝  ╚═╝  ╚═════╝ ╚═╝  ╚═╝                  ##
+  # ##                                                                        ##
+  # ##                      >>>  PARTIE 1 : BACKEND  <<<                      ##
+  # ##                                                                        ##
+  # ############################################################################
+  # ############################################################################
+
+  # ────────────────────────────────────────────────────────────────────────────
+  #  BACKEND - ÉTAPE 1 : Intégration Continue (CI Backend)
+  #  Tests, validation du schéma PostgreSQL et vérification du point de santé
+  # ────────────────────────────────────────────────────────────────────────────
   backend-ci:
-    name: Backend CI (Lint & Test)
+    name: "Backend CI : Lint, BD & Tests"
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -48,20 +67,20 @@ jobs:
           --health-retries 5
 
     steps:
-      - name: Récupérer le code source
+      - name: "Backend : Récupération du code"
         uses: actions/checkout@v4
 
-      - name: Configuration de Node.js
+      - name: "Backend : Configuration de Node.js ${{ env.NODE_VERSION }}"
         uses: actions/setup-node@v4
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: npm
           cache-dependency-path: backend/package-lock.json
 
-      - name: Installation des dépendances
+      - name: "Backend : Installation propre des dépendances"
         run: npm ci
 
-      - name: Validation du schéma de base de données
+      - name: "Backend : Validation du schéma PostgreSQL"
         env:
           DATABASE_URL: postgresql://immo_user:immo_tul@localhost:5432/immo_tul_test
           JWT_SECRET: ci_test_secret_key_that_is_long_enough_for_validation_check
@@ -69,7 +88,7 @@ jobs:
           FRONTEND_URL: http://localhost:5173
         run: node src/init-db.js
 
-      - name: Vérification du point de santé de l'API
+      - name: "Backend : Vérification du endpoint de santé /api/health"
         env:
           DATABASE_URL: postgresql://immo_user:immo_tul@localhost:5432/immo_tul_test
           JWT_SECRET: ci_test_secret_key_that_is_long_enough_for_validation_check
@@ -84,62 +103,31 @@ jobs:
           curl -f http://localhost:3001/api/health || exit 1
           kill $SERVER_PID
 
-  # ─────────────────────────────────────────────────────────────
-  #  ÉTAPE 1 (suite) : Intégration Continue (CI) - Frontend
-  # ─────────────────────────────────────────────────────────────
-  frontend-ci:
-    name: Frontend CI (Lint & Build)
+  # ────────────────────────────────────────────────────────────────────────────
+  #  BACKEND - ÉTAPE 2 : Publication Docker vers GitHub Container Registry (GHCR)
+  #  Build multi-stage de l'image Backend et push vers ghcr.io
+  # ────────────────────────────────────────────────────────────────────────────
+  backend-package:
+    name: "Backend Packaging : Build & Push Docker Image (GHCR)"
     runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: front-new
-
-    steps:
-      - name: Récupérer le code source
-        uses: actions/checkout@v4
-
-      - name: Configuration de Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: ${{ env.NODE_VERSION }}
-          cache: npm
-          cache-dependency-path: front-new/package-lock.json
-
-      - name: Installation des dépendances
-        run: npm ci
-
-      - name: Analyse statique (Linter)
-        run: npm run lint
-
-      - name: Test de compilation Vite (Build de validation)
-        env:
-          VITE_API_URL: /api
-        run: npm run build
-
-  # ─────────────────────────────────────────────────────────────
-  #  ÉTAPE 2 : Build & Push Docker vers GitHub Packages (GHCR)
-  # ─────────────────────────────────────────────────────────────
-  publish-images:
-    name: Build & Push Images to GHCR
-    runs-on: ubuntu-latest
-    needs: [backend-ci, frontend-ci]
+    needs: [backend-ci]
     if: github.ref == 'refs/heads/main' && github.event_name == 'push'
 
     steps:
-      - name: Récupérer le code source
+      - name: "Backend : Récupération du code source"
         uses: actions/checkout@v4
 
-      - name: Configuration de Docker Buildx
+      - name: "Backend : Configuration Docker Buildx"
         uses: docker/setup-buildx-action@v3
 
-      - name: Connexion au GitHub Container Registry
+      - name: "Backend : Connexion au registre GitHub Container Registry (ghcr.io)"
         uses: docker/login-action@v3
         with:
           registry: ${{ env.REGISTRY }}
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Métadonnées Docker Backend
+      - name: "Backend : Génération des tags et métadonnées Docker"
         id: meta-backend
         uses: docker/metadata-action@v5
         with:
@@ -148,7 +136,7 @@ jobs:
             type=raw,value=latest
             type=sha,format=short
 
-      - name: Compiler et publier l'image Backend
+      - name: "Backend : Compilation et publication de l'image sur ghcr.io"
         uses: docker/build-push-action@v6
         with:
           context: ./backend
@@ -159,7 +147,80 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
-      - name: Métadonnées Docker Frontend
+
+  # ############################################################################
+  # ############################################################################
+  # ##                                                                        ##
+  # ##                 ███████╗██████╗  ██████╗ ███╗   ██╗████████╗           ##
+  # ##                 ██╔════╝██╔══██╗██╔═══██╗████╗  ██║╚══██╔══╝           ##
+  # ##                 █████╗  ██████╔╝██║   ██║██╔██╗ ██║   ██║              ##
+  # ##                 ██╔══╝  ██╔══██╗██║   ██║██║╚██╗██║   ██║              ##
+  # ##                 ██║     ██║  ██║╚██████╔╝██║ ╚████║   ██║              ##
+  # ##                 ╚═╝     ╚═╝  ╚═╝ ╚═════╝ ╚═╝  ╚═══╝   ╚═╝              ##
+  # ##                                                                        ##
+  # ##                     >>>  PARTIE 2 : FRONTEND  <<<                      ##
+  # ##                                                                        ##
+  # ############################################################################
+  # ############################################################################
+
+  # ────────────────────────────────────────────────────────────────────────────
+  #  FRONTEND - ÉTAPE 1 : Intégration Continue (CI Frontend)
+  #  Linter statique et compilation des assets Vite
+  # ────────────────────────────────────────────────────────────────────────────
+  frontend-ci:
+    name: "Frontend CI : Lint & Build Vite"
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: front-new
+
+    steps:
+      - name: "Frontend : Récupération du code"
+        uses: actions/checkout@v4
+
+      - name: "Frontend : Configuration de Node.js ${{ env.NODE_VERSION }}"
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: front-new/package-lock.json
+
+      - name: "Frontend : Installation propre des dépendances"
+        run: npm ci
+
+      - name: "Frontend : Analyse statique avec le Linter"
+        run: npm run lint
+
+      - name: "Frontend : Test de compilation Vite (Build de validation)"
+        env:
+          VITE_API_URL: /api
+        run: npm run build
+
+  # ────────────────────────────────────────────────────────────────────────────
+  #  FRONTEND - ÉTAPE 2 : Publication Docker vers GitHub Container Registry (GHCR)
+  #  Build multi-stage Vite + Nginx Alpine et push vers ghcr.io
+  # ────────────────────────────────────────────────────────────────────────────
+  frontend-package:
+    name: "Frontend Packaging : Build & Push Docker Image (GHCR)"
+    runs-on: ubuntu-latest
+    needs: [frontend-ci]
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+
+    steps:
+      - name: "Frontend : Récupération du code source"
+        uses: actions/checkout@v4
+
+      - name: "Frontend : Configuration Docker Buildx"
+        uses: docker/setup-buildx-action@v3
+
+      - name: "Frontend : Connexion au registre GitHub Container Registry (ghcr.io)"
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: "Frontend : Génération des tags et métadonnées Docker"
         id: meta-frontend
         uses: docker/metadata-action@v5
         with:
@@ -168,7 +229,7 @@ jobs:
             type=raw,value=latest
             type=sha,format=short
 
-      - name: Compiler et publier l'image Frontend
+      - name: "Frontend : Compilation et publication de l'image Nginx sur ghcr.io"
         uses: docker/build-push-action@v6
         with:
           context: ./front-new
@@ -181,21 +242,37 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
-  # ─────────────────────────────────────────────────────────────
-  #  ÉTAPE 3 : Déploiement Continu (CD) sur le serveur OVH
-  #  (Zero-Source : Déploiement basé exclusivement sur les images)
-  # ─────────────────────────────────────────────────────────────
-  deploy:
-    name: Continuous Deployment (OVH Cloud)
+
+  # ############################################################################
+  # ############################################################################
+  # ##                                                                        ##
+  # ##             ██████╗ ███████╗██████╗ ██╗      ██████╗ ██╗   ██╗         ##
+  # ##             ██╔══██╗██╔════╝██╔══██╗██║     ██╔═══██╗╚██╗ ██╔╝         ##
+  # ##             ██║  ██║█████╗  ██████╔╝██║     ██║   ██║ ╚████╔╝          ##
+  # ##             ██║  ██║██╔══╝  ██╔═══╝ ██║     ██║   ██║  ╚██╔╝           ##
+  # ##             ██████╔╝███████╗██║     ███████╗╚██████╔╝   ██║            ##
+  # ##             ╚═════╝ ╚══════╝╚═╝     ╚══════╝ ╚═════╝    ╚═╝            ##
+  # ##                                                                        ##
+  # ##                >>>  PARTIE 3 : DÉPLOIEMENT OVH (CD)  <<<               ##
+  # ##                                                                        ##
+  # ############################################################################
+  # ############################################################################
+
+  # ────────────────────────────────────────────────────────────────────────────
+  #  DÉPLOIEMENT CONTINU (CD) - SERVEUR OVH CLOUD
+  #  Déploiement basé exclusivement sur les images GHCR (Zero code source)
+  # ────────────────────────────────────────────────────────────────────────────
+  deploy-ovh:
+    name: "Déploiement Continu : OVH Cloud (Zero-Source)"
     runs-on: ubuntu-latest
-    needs: [publish-images]
+    needs: [backend-package, frontend-package]
     if: github.ref == 'refs/heads/main' && github.event_name == 'push'
 
     steps:
-      - name: Récupérer docker-compose.prod.yml
+      - name: "CD : Récupération du fichier docker-compose.prod.yml"
         uses: actions/checkout@v4
 
-      - name: Préparer le dossier de déploiement sur OVH
+      - name: "CD : Préparation du dossier de déploiement sur le serveur OVH"
         uses: appleboy/ssh-action@v1
         with:
           host: ${{ secrets.SERVER_HOST }}
@@ -206,7 +283,7 @@ jobs:
             TARGET_DIR="${{ secrets.PROJECT_PATH || '/home/' }}${{ secrets.SERVER_USER }}/immo_tul"
             mkdir -p "$TARGET_DIR"
 
-      - name: Transférer docker-compose.prod.yml sur le serveur OVH
+      - name: "CD : Transfert sécurisé de docker-compose.prod.yml sur le serveur OVH"
         uses: appleboy/scp-action@v0.1.7
         with:
           host: ${{ secrets.SERVER_HOST }}
@@ -216,7 +293,7 @@ jobs:
           source: "docker-compose.prod.yml"
           target: "${{ secrets.PROJECT_PATH || '/home/' }}${{ secrets.SERVER_USER }}/immo_tul"
 
-      - name: Exécuter le déploiement sur le serveur OVH via SSH
+      - name: "CD : Déploiement des conteneurs Backend & Frontend via SSH"
         uses: appleboy/ssh-action@v1
         env:
           BACKEND_ENV: ${{ secrets.BACKEND_ENV }}
@@ -233,61 +310,83 @@ jobs:
             set -e
             TARGET_DIR="${{ secrets.PROJECT_PATH || '/home/' }}${{ secrets.SERVER_USER }}/immo_tul"
 
-            echo "🚀 === Déploiement DevOps ImmoTuléar sur OVH ==="
+            echo "========================================================"
+            echo "   DÉPLOIEMENT CONTINU DEVOPS — IMMOTULÉAR (OVH CLOUD)  "
+            echo "========================================================"
             mkdir -p "$TARGET_DIR"
             cd "$TARGET_DIR"
 
-            # 1. Nettoyage du code source résiduel si un ancien clone git était présent
+            # ------------------------------------------------------------------
+            # 1. NETTOYAGE : Éliminer tout code source résiduel sur le serveur
+            # ------------------------------------------------------------------
             if [ -d "$TARGET_DIR/.git" ]; then
-              echo "🧹 Suppression du code source résiduel du serveur..."
+              echo "🧹 Nettoyage du code source résiduel du serveur..."
               rm -rf backend front-new .git
             fi
 
-            # 2. Injection sécurisée des variables d'environnement (.env)
+            # ------------------------------------------------------------------
+            # 2. CONFIGURATION : Injection des variables d'environnement
+            # ------------------------------------------------------------------
             echo "🔐 Configuration du fichier .env de production..."
             printf '%s\n' "$BACKEND_ENV" > .env
             chmod 600 .env
 
-            # 3. Authentification auprès de ghcr.io
+            # ------------------------------------------------------------------
+            # 3. REGISTRE GHCR : Authentification
+            # ------------------------------------------------------------------
             echo "🔑 Authentification auprès de ghcr.io..."
             echo "$REGISTRY_PASSWORD" | docker login ghcr.io -u "$ACTOR" --password-stdin || true
 
-            # 4. Pull des images précompilées
-            echo "📥 Téléchargement des images de production depuis ghcr.io..."
+            # ------------------------------------------------------------------
+            # 4. PULL : Téléchargement des images Backend & Frontend depuis GHCR
+            # ------------------------------------------------------------------
+            echo "📥 Téléchargement des images depuis ghcr.io..."
+            echo "   - Image Backend  : ghcr.io/$REPO/backend:latest"
+            echo "   - Image Frontend : ghcr.io/$REPO/frontend:latest"
             docker compose -f docker-compose.prod.yml pull
 
-            # 5. Démarrage des conteneurs
+            # ------------------------------------------------------------------
+            # 5. DÉMARRAGE : Lancement propre des conteneurs
+            # ------------------------------------------------------------------
             echo "🔄 Démarrage des conteneurs de production..."
             docker compose -f docker-compose.prod.yml up -d --remove-orphans
 
-            # 6. Attente et vérification du Backend
-            echo "⏳ Vérification du Backend..."
+            # ------------------------------------------------------------------
+            # 6. TESTS DE SANTÉ : Vérification BACKEND (API sur port 3001)
+            # ------------------------------------------------------------------
+            echo "⏳ [BACKEND] Vérification de la disponibilité de l'API..."
             for i in $(seq 1 30); do
               if docker compose -f docker-compose.prod.yml exec -T backend wget -qO- http://localhost:3001/api/health > /dev/null 2>&1; then
-                echo "✅ Backend opérationnel !"
+                echo "✅ [BACKEND] API opérationnelle et connectée à la base de données !"
                 break
               fi
-              echo "Attente du backend ($i/30)..."
+              echo "   Attente du Backend ($i/30)..."
               sleep 2
             done
 
-            # 7. Vérification du Frontend sur le port 5005
-            echo "⏳ Vérification du Frontend sur le port 5005..."
+            # ------------------------------------------------------------------
+            # 7. TESTS DE SANTÉ : Vérification FRONTEND (Nginx sur port 5005)
+            # ------------------------------------------------------------------
+            echo "⏳ [FRONTEND] Vérification du serveur Nginx sur le port 5005..."
             for i in $(seq 1 30); do
               if curl -s -f http://localhost:5005/ > /dev/null 2>&1; then
-                echo "✅ Frontend opérationnel sur http://localhost:5005 !"
+                echo "✅ [FRONTEND] Interface web opérationnelle sur http://localhost:5005 !"
                 break
               fi
-              echo "Attente du frontend ($i/30)..."
+              echo "   Attente du Frontend ($i/30)..."
               sleep 2
             done
 
-            # 8. État des conteneurs
-            echo "📋 État des conteneurs :"
+            # ------------------------------------------------------------------
+            # 8. RAPPORT D'ÉTAT : Conteneurs actifs
+            # ------------------------------------------------------------------
+            echo "📋 État des conteneurs en production :"
             docker compose -f docker-compose.prod.yml ps
 
-            # 9. Nettoyage des anciennes images
+            # ------------------------------------------------------------------
+            # 9. NETTOYAGE DOCKER : Élimination des images orphelines
+            # ------------------------------------------------------------------
             echo "🧹 Nettoyage des anciennes images Docker inutilisées..."
             docker image prune -af --filter "until=24h" || true
 
-            echo "🎉 === Déploiement DevOps terminé avec succès ! ==="
+            echo "🎉 === DÉPLOIEMENT RÉUSSI SUR OVH CLOUD === "
