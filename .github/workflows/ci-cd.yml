@@ -15,10 +15,9 @@ env:
   REGISTRY: ghcr.io
 
 jobs:
-  # ────────────────────────────────────────────────────────────────────────────
+ 
   #  BACKEND - ÉTAPE 1 : Intégration Continue (CI Backend)
   #  Tests, validation du schéma PostgreSQL et vérification du point de santé
-  # ────────────────────────────────────────────────────────────────────────────
   backend-ci:
     name: "Backend CI : Lint, BD & Tests"
     runs-on: ubuntu-latest
@@ -78,10 +77,8 @@ jobs:
           curl -f http://localhost:3001/api/health || exit 1
           kill $SERVER_PID
 
-  # ────────────────────────────────────────────────────────────────────────────
   #  BACKEND - ÉTAPE 2 : Publication Docker vers GitHub Container Registry (GHCR)
   #  Build multi-stage de l'image Backend et push vers ghcr.io
-  # ────────────────────────────────────────────────────────────────────────────
   backend-package:
     name: "Backend Packaging : Build & Push Docker Image (GHCR)"
     runs-on: ubuntu-latest
@@ -121,7 +118,7 @@ jobs:
           labels: ${{ steps.meta-backend.outputs.labels }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
-  # ────────────────────────────────────────────────────────────────────────────
+
   #  FRONTEND - ÉTAPE 1 : Intégration Continue (CI Frontend)
   frontend-ci:
     name: "Frontend CI : Lint & Build Vite"
@@ -152,12 +149,12 @@ jobs:
           VITE_API_URL: /api
         run: npm run build
 
-  # ────────────────────────────────────────────────────────────────────────────
+ 
   #  FRONTEND - ÉTAPE 2 : Publication Docker vers GitHub Container Registry (GHCR)
   #  Build multi-stage Vite + Nginx Alpine et push vers ghcr.io
-  # ────────────────────────────────────────────────────────────────────────────
+
   frontend-package:
-    name: "Frontend Packaging : Build & Push Docker Image (GHCR)"
+    name: "Frontend Packaging : Build & Push Docker Image"
     runs-on: ubuntu-latest
     needs: [frontend-ci]
     if: github.ref == 'refs/heads/main' && github.event_name == 'push'
@@ -197,12 +194,12 @@ jobs:
           labels: ${{ steps.meta-frontend.outputs.labels }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
-  # ────────────────────────────────────────────────────────────────────────────
+
+
   #  DÉPLOIEMENT CONTINU (CD) - SERVEUR OVH CLOUD
-  #  Déploiement basé exclusivement sur les images GHCR (Zero code source)
-  # ────────────────────────────────────────────────────────────────────────────
+  #  Déploiement basé exclusivement sur les images GHCR 
   deploy-ovh:
-    name: "Déploiement Continu : OVH Cloud (Zero-Source)"
+    name: "Déploiement Continu "
     runs-on: ubuntu-latest
     needs: [backend-package, frontend-package]
     if: github.ref == 'refs/heads/main' && github.event_name == 'push'
